@@ -29,8 +29,5 @@ Ky është një aplikacion për studim me AI (StudyAI) që ndihmon përdoruesit 
 
 ---
 
-##Author
-Rinesë Bajgora
-
 ## Author
-- Emri yt
+Rinesë Bajgora
