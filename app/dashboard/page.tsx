@@ -61,9 +61,15 @@ export default function DashboardPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!input.trim()) return
-    setLoading(true)
     setError('')
+
+    // 🔹 Edge Case #1: Input shumë i shkurtër
+    if (input.trim().length < 10) {
+      setError('Ju lutem shkruani një pyetje më të detajuar (minimum 10 karaktere).')
+      return
+    }
+
+    setLoading(true)
     setAiResponse('')
     try {
       const res = await fetch('/api/chat', {

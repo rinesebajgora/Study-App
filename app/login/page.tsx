@@ -17,6 +17,21 @@ export default function LoginPage() {
     if (dm === 'true') setDarkMode(true)
   }, [])
 
+  // ✅ FIX 1: kontrollo session + pastro token të prishur
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession()
+
+      if (data.session) {
+        router.push('/dashboard')
+      } else {
+        await supabase.auth.signOut()
+      }
+    }
+
+    checkSession()
+  }, [router])
+
   const toggleDarkMode = () => {
     setDarkMode(prev => {
       localStorage.setItem('darkMode', (!prev).toString())
@@ -27,9 +42,23 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
+
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError(error.message)
-    else router.push('/dashboard')
+
+    if (error) {
+      // ✅ FIX 2: nëse refresh token është problem → reset
+      if (error.message.includes('Refresh Token')) {
+        await supabase.auth.signOut()
+        localStorage.clear()
+        sessionStorage.clear()
+        setError('Session expired. Please try again.')
+        return
+      }
+
+      setError(error.message)
+    } else {
+      router.push('/dashboard')
+    }
   }
 
   return (
