@@ -1,20 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
-const client = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
-
 export async function POST(request: NextRequest) {
   try {
     const { message } = await request.json();
+    const trimmedMessage = typeof message === "string" ? message.trim() : "";
 
-    if (!message) {
+    if (!trimmedMessage) {
       return NextResponse.json(
         { error: "Message is empty" },
         { status: 400 }
       );
     }
+
+    if (!process.env.GROQ_API_KEY) {
+      return NextResponse.json(
+        { error: "The AI service is not configured yet. Add GROQ_API_KEY to your environment." },
+        { status: 500 }
+      );
+    }
+
+    const client = new Groq({
+      apiKey: process.env.GROQ_API_KEY
+    });
+
     const completion = await client.chat.completions.create({
       model: "llama-3.1-8b-instant", 
       messages: [
@@ -24,13 +33,20 @@ export async function POST(request: NextRequest) {
         },
         {
           role: "user",
-          content: message
+          content: trimmedMessage
         }
       ],
       max_tokens: 1000
     });
 
-    const reply = completion.choices[0].message.content;
+    const reply = completion.choices[0]?.message?.content?.trim();
+
+    if (!reply) {
+      return NextResponse.json(
+        { error: "The AI returned an empty response. Please try again." },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ reply });
 
@@ -38,7 +54,7 @@ export async function POST(request: NextRequest) {
     console.error("Groq API error:", error);
 
     return NextResponse.json(
-      { error: "Error while communicating with AI" },
+      { error: "We could not get a response from the AI right now. Please try again in a moment." },
       { status: 500 }
     );
   }

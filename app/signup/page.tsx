@@ -1,8 +1,9 @@
 'use client'
-import React, { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import { useRouter } from 'next/navigation'
+
+import React, { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { supabase } from '../lib/supabase'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -10,16 +11,15 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-
-  const [darkMode, setDarkMode] = useState(false)
-
-  useEffect(() => {
-    const dm = localStorage.getItem('darkMode')
-    if (dm === 'true') setDarkMode(true)
-  }, [])
+  const [success, setSuccess] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('darkMode') === 'true'
+  })
 
   const toggleDarkMode = () => {
-    setDarkMode(prev => {
+    setDarkMode((prev) => {
       localStorage.setItem('darkMode', (!prev).toString())
       return !prev
     })
@@ -28,34 +28,57 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
+    setSuccess('')
 
-    if (!email.includes('@')) { setError('Email not valid'); return }
-    if (password.length < 6) { setError('Password min 6 characters'); return }
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address.')
+      return
+    }
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name } }
-    })
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.')
+      return
+    }
 
-    if (error) setError(error.message)
-    else {
-      alert('Check your email for verification')
+    if (loading) return
+
+    setLoading(true)
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { name: name.trim() } },
+      })
+
+      if (error) {
+        setError(error.message)
+        return
+      }
+
+      setSuccess('Account created. Please check your email for verification.')
       router.push('/login')
+    } catch (error) {
+      console.error('Signup failed:', error)
+      setError('Signup failed. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      background: darkMode ? '#1e1e1e' : '#f5f5f5',
-      color: darkMode ? '#f0f0f0' : '#1e1e1e',
-      transition: 'all 0.3s',
-      position: 'relative'
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        background: darkMode ? '#1e1e1e' : '#f5f5f5',
+        color: darkMode ? '#f0f0f0' : '#1e1e1e',
+        transition: 'all 0.3s',
+        position: 'relative',
+      }}
+    >
       <button
         onClick={toggleDarkMode}
         style={{
@@ -68,7 +91,7 @@ export default function SignupPage() {
           background: darkMode ? '#444' : '#ddd',
           color: darkMode ? '#fff' : '#000',
           border: 'none',
-          cursor: 'pointer'
+          cursor: 'pointer',
         }}
       >
         {darkMode ? 'Light Mode' : 'Dark Mode'}
@@ -86,58 +109,71 @@ export default function SignupPage() {
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
-          transition: 'all 0.3s'
+          transition: 'all 0.3s',
         }}
       >
-        <h2 style={{ marginBottom: '20px', fontSize: '24px', fontWeight: 'bold', textAlign: 'center' }}>SignUp</h2>
+        <h2
+          style={{
+            marginBottom: '20px',
+            fontSize: '24px',
+            fontWeight: 'bold',
+            textAlign: 'center',
+          }}
+        >
+          Sign Up
+        </h2>
 
         <input
           placeholder="Name"
           value={name}
-          onChange={e => setName(e.target.value)}
+          onChange={(e) => setName(e.target.value)}
+          required
+          disabled={loading}
           style={{
             padding: '12px',
             borderRadius: '8px',
             border: '1px solid #ccc',
             fontSize: '14px',
             background: darkMode ? '#555' : 'white',
-            color: darkMode ? '#f0f0f0' : '#000'
+            color: darkMode ? '#f0f0f0' : '#000',
           }}
-          required
         />
         <input
           type="email"
           placeholder="Email"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          disabled={loading}
           style={{
             padding: '12px',
             borderRadius: '8px',
             border: '1px solid #ccc',
             fontSize: '14px',
             background: darkMode ? '#555' : 'white',
-            color: darkMode ? '#f0f0f0' : '#000'
+            color: darkMode ? '#f0f0f0' : '#000',
           }}
-          required
         />
         <input
           type="password"
           placeholder="Password"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          disabled={loading}
           style={{
             padding: '12px',
             borderRadius: '8px',
             border: '1px solid #ccc',
             fontSize: '14px',
             background: darkMode ? '#555' : 'white',
-            color: darkMode ? '#f0f0f0' : '#000'
+            color: darkMode ? '#f0f0f0' : '#000',
           }}
-          required
         />
 
         <button
           type="submit"
+          disabled={loading}
           style={{
             padding: '12px',
             borderRadius: '8px',
@@ -146,16 +182,30 @@ export default function SignupPage() {
             color: 'white',
             fontWeight: 'bold',
             cursor: 'pointer',
-            transition: '0.2s'
+            transition: '0.2s',
+            opacity: loading ? 0.7 : 1,
           }}
         >
-          Signup
+          {loading ? 'Creating account...' : 'Signup'}
         </button>
 
-        {error && <p style={{ color: 'red', textAlign: 'center', fontSize: '14px' }}>{error}</p>}
+        {error && (
+          <p style={{ color: 'red', textAlign: 'center', fontSize: '14px' }}>
+            {error}
+          </p>
+        )}
+
+        {success && (
+          <p style={{ color: 'green', textAlign: 'center', fontSize: '14px' }}>
+            {success}
+          </p>
+        )}
 
         <p style={{ textAlign: 'center', fontSize: '14px', marginTop: '12px' }}>
-          Already have an account? <Link href="/login" style={{ color: '#2563eb', fontWeight: 'bold' }}>LogIn</Link>
+          Already have an account?{' '}
+          <Link href="/login" style={{ color: '#2563eb', fontWeight: 'bold' }}>
+            Log In
+          </Link>
         </p>
       </form>
     </div>

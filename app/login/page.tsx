@@ -1,39 +1,23 @@
 'use client'
-import React, { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import { useRouter } from 'next/navigation'
+
+import React, { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { supabase } from '../lib/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [darkMode, setDarkMode] = useState(false)
-
-  // Load dark mode from localStorage
-  useEffect(() => {
-    const dm = localStorage.getItem('darkMode')
-    if (dm === 'true') setDarkMode(true)
-  }, [])
-
-  // ✅ FIX 1: kontrollo session + pastro token të prishur
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession()
-
-      if (data.session) {
-        router.push('/dashboard')
-      } else {
-        await supabase.auth.signOut()
-      }
-    }
-
-    checkSession()
-  }, [router])
+  const [loading, setLoading] = useState(false)
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('darkMode') === 'true'
+  })
 
   const toggleDarkMode = () => {
-    setDarkMode(prev => {
+    setDarkMode((prev) => {
       localStorage.setItem('darkMode', (!prev).toString())
       return !prev
     })
@@ -43,37 +27,43 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (loading) return
 
-    if (error) {
-      // ✅ FIX 2: nëse refresh token është problem → reset
-      if (error.message.includes('Refresh Token')) {
-        await supabase.auth.signOut()
-        localStorage.clear()
-        sessionStorage.clear()
-        setError('Session expired. Please try again.')
+    setLoading(true)
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+
+      if (error) {
+        setError(error.message)
         return
       }
 
-      setError(error.message)
-    } else {
       router.push('/dashboard')
+    } catch (error) {
+      console.error('Login failed:', error)
+      setError('Login failed. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      background: darkMode ? '#1e1e1e' : '#f5f5f5',
-      color: darkMode ? '#f0f0f0' : '#1e1e1e',
-      transition: 'all 0.3s',
-      position: 'relative',
-      padding: '16px'
-    }}>
-      {/* Dark Mode Toggle */}
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        background: darkMode ? '#1e1e1e' : '#f5f5f5',
+        color: darkMode ? '#f0f0f0' : '#1e1e1e',
+        transition: 'all 0.3s',
+        position: 'relative',
+      }}
+    >
       <button
         onClick={toggleDarkMode}
         style={{
@@ -86,13 +76,12 @@ export default function LoginPage() {
           background: darkMode ? '#444' : '#ddd',
           color: darkMode ? '#fff' : '#000',
           border: 'none',
-          cursor: 'pointer'
+          cursor: 'pointer',
         }}
       >
         {darkMode ? 'Light Mode' : 'Dark Mode'}
       </button>
 
-      {/* Form */}
       <form
         onSubmit={handleLogin}
         style={{
@@ -105,44 +94,57 @@ export default function LoginPage() {
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
-          transition: 'all 0.3s'
+          transition: 'all 0.3s',
         }}
       >
-        <h2 style={{ marginBottom: '20px', fontSize: '24px', fontWeight: 'bold', textAlign: 'center' }}>Login</h2>
+        <h2
+          style={{
+            marginBottom: '20px',
+            fontSize: '24px',
+            fontWeight: 'bold',
+            textAlign: 'center',
+          }}
+        >
+          Login
+        </h2>
 
         <input
           type="email"
           placeholder="Email"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
           required
+          disabled={loading}
           style={{
             padding: '12px',
             borderRadius: '8px',
             border: '1px solid #ccc',
             fontSize: '14px',
             background: darkMode ? '#555' : 'white',
-            color: darkMode ? '#f0f0f0' : '#000'
+            color: darkMode ? '#f0f0f0' : '#000',
           }}
         />
+
         <input
           type="password"
           placeholder="Password"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           required
+          disabled={loading}
           style={{
             padding: '12px',
             borderRadius: '8px',
             border: '1px solid #ccc',
             fontSize: '14px',
             background: darkMode ? '#555' : 'white',
-            color: darkMode ? '#f0f0f0' : '#000'
+            color: darkMode ? '#f0f0f0' : '#000',
           }}
         />
 
         <button
           type="submit"
+          disabled={loading}
           style={{
             padding: '12px',
             borderRadius: '8px',
@@ -151,16 +153,24 @@ export default function LoginPage() {
             color: 'white',
             fontWeight: 'bold',
             cursor: 'pointer',
-            transition: '0.2s'
+            transition: '0.2s',
+            opacity: loading ? 0.7 : 1,
           }}
         >
-          Login
+          {loading ? 'Logging in...' : 'Login'}
         </button>
 
-        {error && <p style={{ color: 'red', textAlign: 'center', fontSize: '14px' }}>{error}</p>}
+        {error && (
+          <p style={{ color: 'red', textAlign: 'center', fontSize: '14px' }}>
+            {error}
+          </p>
+        )}
 
         <p style={{ textAlign: 'center', fontSize: '14px', marginTop: '12px' }}>
-          Don't have an account? <Link href="/signup" style={{ color: '#2563eb', fontWeight: 'bold' }}>Sign Up</Link>
+          Don&apos;t have an account?{' '}
+          <Link href="/signup" style={{ color: '#2563eb', fontWeight: 'bold' }}>
+            Sign Up
+          </Link>
         </p>
       </form>
     </div>
