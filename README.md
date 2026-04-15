@@ -1,6 +1,6 @@
 # StudyAI – AI Study Assistant
 
-##  Description
+## 📌 Description
 StudyAI është një aplikacion për studim me AI që ndihmon përdoruesit të bëjnë pyetje dhe të marrin përgjigje inteligjente për tema të ndryshme.
 
 Përdoruesit mund të:
@@ -13,7 +13,7 @@ Përdoruesit mund të:
 
 ---
 
-## Technologies
+## 🚀 Technologies
 - Next.js
 - React
 - Supabase (Authentication & Database)
@@ -22,7 +22,7 @@ Përdoruesit mund të:
 
 ---
 
-## Features
+## ✨ Features
 - Authentication (Login / Signup / Logout)
 - AI Q&A system
 - CRUD për pyetje (Create, Read, Update, Delete)
@@ -33,17 +33,24 @@ Përdoruesit mund të:
 
 ---
 
-## ⚙️ Si niset projekti lokalisht
+## ⚙️ Setup
 
-```bash
-npm install
-npm run dev
+npm install  
+npm run dev  
+
 ---
 
-## Env variables
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-GROQ_API_KEY=
+## 🔐 Environment Variables
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url  
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key  
+GROQ_API_KEY=your_api_key  
 
-## Live Demo
-https://study-app-rinesa1.vercel.app
+---
+
+## 🌐 Live Demo
+https://study-app-rinesa1.vercel.app  
+
+---
+
+##  Author
+Rinesë Bajgora  
