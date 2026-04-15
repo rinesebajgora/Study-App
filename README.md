@@ -1,53 +1,49 @@
-# AI Study Assistant
+# StudyAI – AI Study Assistant
 
-AI Study Assistant is a Next.js app where students can sign up, log in, ask study questions, get AI-generated answers, and save those answers by subject for later review.
+##  Description
+StudyAI është një aplikacion për studim me AI që ndihmon përdoruesit të bëjnë pyetje dhe të marrin përgjigje inteligjente për tema të ndryshme.
 
-## What the project does
+Përdoruesit mund të:
+- regjistrohen dhe login
+- bëjnë pyetje tek AI
+- ruajnë përgjigjet
+- përditësojnë dhe fshijnë pyetjet
+- organizojnë pyetjet sipas subject-it
+- përdorin dark mode
 
-- User authentication with Supabase
-- AI-powered question answering through the `/api/chat` route
-- Save, update, and delete study questions
-- Group saved questions by subject
-- Dark mode preference stored in `localStorage`
+---
 
-## Run locally
+## Technologies
+- Next.js
+- React
+- Supabase (Authentication & Database)
+- Tailwind CSS
+- Vercel (Deployment)
 
-1. Install dependencies:
+---
+
+## Features
+- Authentication (Login / Signup / Logout)
+- AI Q&A system
+- CRUD për pyetje (Create, Read, Update, Delete)
+- Organizim sipas subject-it
+- Dark Mode (ruhet në localStorage)
+- UI responsive dhe moderne
+- Protected routes (vetëm për user të loguar)
+
+---
+
+## ⚙️ Si niset projekti lokalisht
 
 ```bash
 npm install
-```
-
-2. Create a `.env.local` file in the project root.
-
-3. Add these environment variables:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-GROQ_API_KEY=your_groq_api_key
-```
-
-4. Start the development server:
-
-```bash
 npm run dev
-```
+---
 
-5. Open `http://localhost:3000`.
+## Env variables
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+GROQ_API_KEY=
 
-## Scripts
-
-- `npm run dev` starts the local dev server
-- `npm run build` creates a production build
-- `npm run start` runs the production build
-- `npm run lint` checks the code with ESLint
-
-## Live demo
-
-- Add your deployed URL here if available: `https://your-app-url`
-
-## Notes
-
-- The app expects a Supabase table named `questions`.
-- The `questions` table should include at least `id`, `user_id`, `question`, `answer`, `subject`, and `created_at`.
+## Live Demo
+https://study-app-rinesa1.vercel.app
