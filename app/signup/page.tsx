@@ -3,7 +3,9 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import AuthShell from '../components/AuthShell'
 import { supabase } from '../lib/supabase'
+import { useDarkMode } from '../lib/useDarkMode'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -13,17 +15,7 @@ export default function SignupPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('darkMode') === 'true'
-  })
-
-  const toggleDarkMode = () => {
-    setDarkMode((prev) => {
-      localStorage.setItem('darkMode', (!prev).toString())
-      return !prev
-    })
-  }
+  const { darkMode } = useDarkMode()
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -67,147 +59,124 @@ export default function SignupPage() {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        background: darkMode ? '#1e1e1e' : '#f5f5f5',
-        color: darkMode ? '#f0f0f0' : '#1e1e1e',
-        transition: 'all 0.3s',
-        position: 'relative',
-      }}
+    <AuthShell
+      darkMode={darkMode}
+      eyebrow="Start fresh"
+      title="Create a study workspace that keeps everything in one place."
+      subtitle="Set up in a minute, ask AI for explanations, and save the answers you want to revisit later."
     >
-      <button
-        onClick={toggleDarkMode}
-        style={{
-          position: 'absolute',
-          top: '10px',
-          right: '10px',
-          padding: '4px 8px',
-          fontSize: '12px',
-          borderRadius: '4px',
-          background: darkMode ? '#444' : '#ddd',
-          color: darkMode ? '#fff' : '#000',
-          border: 'none',
-          cursor: 'pointer',
-        }}
-      >
-        {darkMode ? 'Light Mode' : 'Dark Mode'}
-      </button>
-
-      <form
-        onSubmit={handleSignup}
-        style={{
-          background: darkMode ? '#333' : 'white',
-          padding: '40px',
-          borderRadius: '12px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-          width: '100%',
-          maxWidth: '400px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          transition: 'all 0.3s',
-        }}
-      >
-        <h2
-          style={{
-            marginBottom: '20px',
-            fontSize: '24px',
-            fontWeight: 'bold',
-            textAlign: 'center',
-          }}
-        >
-          Sign Up
-        </h2>
-
-        <input
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          disabled={loading}
-          style={{
-            padding: '12px',
-            borderRadius: '8px',
-            border: '1px solid #ccc',
-            fontSize: '14px',
-            background: darkMode ? '#555' : 'white',
-            color: darkMode ? '#f0f0f0' : '#000',
-          }}
-        />
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          disabled={loading}
-          style={{
-            padding: '12px',
-            borderRadius: '8px',
-            border: '1px solid #ccc',
-            fontSize: '14px',
-            background: darkMode ? '#555' : 'white',
-            color: darkMode ? '#f0f0f0' : '#000',
-          }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          disabled={loading}
-          style={{
-            padding: '12px',
-            borderRadius: '8px',
-            border: '1px solid #ccc',
-            fontSize: '14px',
-            background: darkMode ? '#555' : 'white',
-            color: darkMode ? '#f0f0f0' : '#000',
-          }}
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            padding: '12px',
-            borderRadius: '8px',
-            border: 'none',
-            background: '#2563eb',
-            color: 'white',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            transition: '0.2s',
-            opacity: loading ? 0.7 : 1,
-          }}
-        >
-          {loading ? 'Creating account...' : 'Signup'}
-        </button>
-
-        {error && (
-          <p style={{ color: 'red', textAlign: 'center', fontSize: '14px' }}>
-            {error}
+      <div className="w-full">
+        <div className="mb-8">
+          <h2 className="text-3xl font-semibold">Create account</h2>
+          <p className={`mt-3 text-sm leading-6 ${darkMode ? 'text-slate-400' : 'text-stone-600'}`}>
+            Build your account and start collecting answers worth reviewing later.
           </p>
-        )}
+        </div>
 
-        {success && (
-          <p style={{ color: 'green', textAlign: 'center', fontSize: '14px' }}>
-            {success}
-          </p>
-        )}
+        <form onSubmit={handleSignup} className="space-y-4">
+          <label className="block">
+            <span className={`mb-2 block text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-stone-700'}`}>
+              Name
+            </span>
+            <input
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={loading}
+              className={`h-13 w-full rounded-2xl border px-4 outline-none transition ${
+                darkMode
+                  ? 'border-white/10 bg-slate-950/70 text-slate-100 placeholder:text-slate-500 focus:border-amber-300'
+                  : 'border-stone-200 bg-stone-50 text-slate-900 placeholder:text-stone-400 focus:border-teal-700'
+              }`}
+            />
+          </label>
 
-        <p style={{ textAlign: 'center', fontSize: '14px', marginTop: '12px' }}>
-          Already have an account?{' '}
-          <Link href="/login" style={{ color: '#2563eb', fontWeight: 'bold' }}>
-            Log In
+          <label className="block">
+            <span className={`mb-2 block text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-stone-700'}`}>
+              Email
+            </span>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+              className={`h-13 w-full rounded-2xl border px-4 outline-none transition ${
+                darkMode
+                  ? 'border-white/10 bg-slate-950/70 text-slate-100 placeholder:text-slate-500 focus:border-amber-300'
+                  : 'border-stone-200 bg-stone-50 text-slate-900 placeholder:text-stone-400 focus:border-teal-700'
+              }`}
+            />
+          </label>
+
+          <label className="block">
+            <span className={`mb-2 block text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-stone-700'}`}>
+              Password
+            </span>
+            <input
+              type="password"
+              placeholder="At least 6 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+              className={`h-13 w-full rounded-2xl border px-4 outline-none transition ${
+                darkMode
+                  ? 'border-white/10 bg-slate-950/70 text-slate-100 placeholder:text-slate-500 focus:border-amber-300'
+                  : 'border-stone-200 bg-stone-50 text-slate-900 placeholder:text-stone-400 focus:border-teal-700'
+              }`}
+            />
+          </label>
+
+          {error && (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                darkMode
+                  ? 'border-red-500/30 bg-red-950/40 text-red-200'
+                  : 'border-red-200 bg-red-50 text-red-700'
+              }`}
+            >
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-sm ${
+                darkMode
+                  ? 'border-amber-300/30 bg-amber-950/40 text-amber-100'
+                  : 'border-teal-200 bg-teal-50 text-teal-800'
+              }`}
+            >
+              {success}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={`app-button min-h-[3.25rem] w-full justify-center disabled:cursor-not-allowed disabled:opacity-60 ${
+              darkMode
+                ? 'bg-amber-300 text-slate-950 hover:bg-amber-200'
+                : 'bg-teal-900 text-white hover:bg-teal-800'
+            }`}
+          >
+            {loading ? 'Creating account...' : 'Create account'}
+          </button>
+        </form>
+
+        <div className={`mt-6 flex flex-wrap items-center justify-between gap-3 text-sm ${darkMode ? 'text-slate-400' : 'text-stone-600'}`}>
+          <span>Already registered?</span>
+          <Link
+            href="/login"
+            className={`rounded-lg px-1 py-1 font-semibold ${darkMode ? 'text-amber-200' : 'text-teal-800'}`}
+          >
+            Go to login
           </Link>
-        </p>
-      </form>
-    </div>
+        </div>
+      </div>
+    </AuthShell>
   )
 }

@@ -12,6 +12,7 @@ import {
   updateQuestion,
 } from '../lib/questions'
 import { supabase } from '../lib/supabase'
+import { useDarkMode } from '../lib/useDarkMode'
 
 type StatusMessage = {
   type: 'success' | 'error'
@@ -45,12 +46,9 @@ export default function DashboardPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editQuestion, setEditQuestion] = useState('')
   const [editSubject, setEditSubject] = useState('')
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('darkMode') === 'true'
-  })
   const [deleteModalOpenId, setDeleteModalOpenId] = useState<string | null>(null)
   const [tempDelete, setTempDelete] = useState(false)
+  const { darkMode } = useDarkMode()
 
   useEffect(() => {
     if (!user) {
@@ -77,13 +75,6 @@ export default function DashboardPage() {
 
     loadQuestions()
   }, [user])
-
-  const toggleDarkMode = () => {
-    setDarkMode((prev) => {
-      localStorage.setItem('darkMode', (!prev).toString())
-      return !prev
-    })
-  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -131,10 +122,6 @@ export default function DashboardPage() {
 
       setAiResponse(data.reply)
       setTempDelete(true)
-      setStatus({
-        type: 'success',
-        text: 'Answer ready. Save it if you want to keep it in your study history.',
-      })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unexpected error'
       setStatus({ type: 'error', text: message })
@@ -264,267 +251,417 @@ export default function DashboardPage() {
     grouped[sub].push(qa)
   })
 
+  const groupedSubjects = Object.keys(grouped)
+  const draftLabel = aiResponse ? 'Answer ready' : loading ? 'Working' : 'Empty'
+
   return (
     <Protected>
       <div
         className={`${
-          darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-800'
-        } min-h-screen flex flex-col items-center p-6 transition-colors duration-300`}
+          darkMode ? 'page-shell bg-slate-950 text-stone-100' : 'page-shell bg-stone-50 text-slate-900'
+        } min-h-screen transition-colors duration-300`}
       >
-        <div className="absolute top-4 right-4">
-          <button
-            onClick={toggleDarkMode}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-sm rounded shadow transition-colors duration-200"
-          >
-            {darkMode ? 'Light Mode' : 'Dark Mode'}
-          </button>
-        </div>
-
-        <div className="w-full max-w-3xl flex justify-between items-center mb-5">
-          <h1 className="text-2xl font-bold">AI Study Assistant</h1>
-
-          <button
-            onClick={handleLogout}
-            className="bg-red-500 hover:bg-red-600 text-white py-3 px-4 rounded-lg shadow font-semibold transition"
-          >
-            Logout
-          </button>
-        </div>
-
-        <div
-          className={`${
-            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-          } w-full max-w-3xl p-6 rounded-xl shadow-lg border transition-colors duration-300`}
-        >
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3 mb-5">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask your question..."
-              className={`${
+        <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+          <div className="grid flex-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <aside
+              className={`surface-panel rounded-3xl border p-5 ${
                 darkMode
-                  ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder-gray-300'
-                  : 'bg-gray-50 text-gray-800 border-gray-300 placeholder-gray-500'
-              } p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-25 shadow-sm transition-colors duration-300`}
-              disabled={loading}
-            />
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Enter subject (optional)"
-              className={`${
-                darkMode
-                  ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder-gray-300'
-                  : 'bg-gray-50 text-gray-800 border-gray-300 placeholder-gray-500'
-              } p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-colors duration-300`}
-              disabled={loading}
-            />
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg shadow font-semibold transition disabled:opacity-50"
-            >
-              {loading ? 'Thinking...' : 'Ask AI'}
-            </button>
-          </form>
-
-          {loading && <p className="text-gray-400 mb-2">AI is thinking...</p>}
-
-          {status && (
-            <div
-              className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
-                status.type === 'success'
-                  ? darkMode
-                    ? 'border-green-700 bg-green-950 text-green-100'
-                    : 'border-green-200 bg-green-50 text-green-800'
-                  : darkMode
-                    ? 'border-red-700 bg-red-950 text-red-100'
-                    : 'border-red-200 bg-red-50 text-red-700'
+                  ? 'border-white/10 bg-slate-900/92'
+                  : 'border-stone-200/80 bg-white/96'
               }`}
             >
-              {status.text}
-            </div>
-          )}
-
-          {aiResponse && tempDelete && (
-            <div
-              className={`${
-                darkMode
-                  ? 'bg-green-900 border-green-700 text-gray-100'
-                  : 'bg-green-50 border-green-200 text-gray-800'
-              } border p-4 rounded-lg mb-4 shadow-sm transition-colors duration-300 relative`}
-            >
-              <p className="whitespace-pre-wrap">{aiResponse}</p>
-              <div className="flex gap-2 mt-2 justify-end">
-                <button
-                  onClick={handleSaveQA}
-                  disabled={loading}
-                  className="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg shadow font-semibold transition disabled:opacity-50"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() =>
-                    clearDraft(setInput, setSubject, setAiResponse, setTempDelete)
-                  }
-                  disabled={loading}
-                  className="bg-gray-500 hover:bg-gray-600 text-white py-3 px-4 rounded-lg shadow font-semibold transition disabled:opacity-50"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          )}
-
-          {fetchingSaved ? (
-            <p className="text-sm text-gray-400">Loading your saved questions...</p>
-          ) : savedQA.length === 0 ? (
-            <div
-              className={`rounded-xl border border-dashed p-6 text-center ${
-                darkMode
-                  ? 'border-gray-600 bg-gray-900/50 text-gray-300'
-                  : 'border-gray-300 bg-gray-50 text-gray-600'
-              }`}
-            >
-              <p className="font-medium">No saved questions yet.</p>
-              <p className="mt-1 text-sm">
-                Ask the AI something above, then save the answer to build your study
-                history.
-              </p>
-            </div>
-          ) : (
-            Object.keys(grouped).map((sub) => (
-              <div key={sub} className="mb-4">
-                <h3 className="text-lg font-semibold mb-2 text-indigo-500 border-b border-indigo-300 pb-1">
-                  {sub}
-                </h3>
-                <div className="space-y-3">
-                  {grouped[sub].map((qa) => (
-                    <div
-                      key={qa.id}
-                      className={`${
-                        darkMode
-                          ? 'bg-gray-700 border-gray-600'
-                          : 'bg-gray-50 border-gray-200'
-                      } relative border p-3 rounded-xl shadow hover:shadow-md transition-colors duration-300`}
-                    >
-                      <div
-                        onClick={() => toggleExpand(qa.id)}
-                        className="cursor-pointer pr-20"
-                      >
-                        {editingId === qa.id ? (
-                          <>
-                            <input
-                              type="text"
-                              value={editQuestion}
-                              onChange={(e) => setEditQuestion(e.target.value)}
-                              className="w-full mb-1 p-2 border rounded outline-none text-gray-900"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <input
-                              type="text"
-                              value={editSubject}
-                              onChange={(e) => setEditSubject(e.target.value)}
-                              className="w-full mb-1 p-2 border rounded outline-none text-gray-900"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleUpdate(qa.id)
-                              }}
-                              className="bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded-lg shadow font-semibold transition mr-2"
-                            >
-                              Save Update
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setEditingId(null)
-                              }}
-                              className="bg-gray-400 hover:bg-gray-500 text-white py-2 px-4 rounded-lg shadow font-semibold transition"
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <p className="truncate font-medium">
-                              <strong>Q:</strong> {qa.question}
-                            </p>
-                            {expanded[qa.id] && (
-                              <>
-                                <p className="mt-1 text-sm text-indigo-400">
-                                  Subject: {qa.subject || 'General'}
-                                </p>
-                                <p className="mt-1 whitespace-pre-wrap">
-                                  <strong>A:</strong> {qa.answer}
-                                </p>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setEditingId(qa.id)
-                                    setEditQuestion(qa.question)
-                                    setEditSubject(qa.subject || '')
-                                  }}
-                                  className="mt-2 bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded shadow mr-2"
-                                >
-                                  Update
-                                </button>
-                              </>
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      {editingId !== qa.id && (
-                        <div className="absolute top-3 right-3">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setDeleteModalOpenId(qa.id)
-                            }}
-                            className="text-xs px-3 py-1 rounded-lg bg-red-500 hover:bg-red-600 text-white"
-                          >
-                            Delete
-                          </button>
-                          {deleteModalOpenId === qa.id && (
-                            <div
-                              className={`${
-                                darkMode
-                                  ? 'bg-gray-800 text-gray-100 border-gray-700'
-                                  : 'bg-white text-gray-800 border-gray-200'
-                              } border p-3 rounded-lg shadow-lg mt-2 absolute right-0 w-64 z-10`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <p className="mb-2 text-sm">
-                                Are you sure you want to delete this question?
-                              </p>
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  onClick={() => setDeleteModalOpenId(null)}
-                                  className="px-2 py-1 text-xs rounded bg-gray-400 hover:bg-gray-500 text-white"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteSaved(qa.id)}
-                                  className="px-2 py-1 text-xs rounded bg-red-500 hover:bg-red-600 text-white"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${darkMode ? 'text-amber-200' : 'text-teal-800'}`}>
+                    StudyAI
+                  </p>
+                  <h1 className="mt-2 text-2xl font-semibold">Workspace</h1>
                 </div>
               </div>
-            ))
-          )}
+
+              <div className={`mt-6 rounded-2xl p-4 ${darkMode ? 'bg-slate-800 text-slate-100' : 'bg-teal-900 text-teal-50'}`}>
+                <p className="text-sm font-medium">Signed in as</p>
+                <p className="mt-2 wrap-break-word text-sm leading-6 opacity-80">
+                  {user.email ?? 'Signed in'}
+                </p>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {[
+                  ['Saved questions', `${savedQA.length}`],
+                  ['Subjects covered', `${groupedSubjects.length || 0}`],
+                  ['Draft status', draftLabel],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className={`rounded-2xl border p-4 ${
+                      darkMode
+                        ? 'border-white/10 bg-slate-800/80'
+                        : 'border-stone-200 bg-stone-50'
+                    }`}
+                  >
+                    <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${darkMode ? 'text-slate-400' : 'text-stone-500'}`}>
+                      {label}
+                    </p>
+                    <p className="mt-3 text-2xl font-semibold">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className={`app-button mt-6 w-full justify-center text-white ${
+                  darkMode
+                    ? 'bg-red-600 hover:bg-red-500'
+                    : 'bg-teal-900 hover:bg-teal-800'
+                }`}
+              >
+                Logout
+              </button>
+            </aside>
+
+            <main className="min-w-0 space-y-6">
+              <section className={`glass-panel rounded-3xl border px-5 py-6 sm:px-7 ${
+                darkMode
+                  ? 'border-white/10 bg-slate-900/80'
+                  : 'border-stone-200/80 bg-white/82'
+              }`}>
+                <div className="max-w-3xl">
+                  <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${darkMode ? 'text-amber-200' : 'text-teal-800'}`}>
+                    Study workspace
+                  </p>
+                  <h2 className="mt-3 text-3xl font-semibold sm:text-4xl">
+                    Ask better questions and keep the answers that matter.
+                  </h2>
+                </div>
+              </section>
+
+              <div className="space-y-6">
+                <section className={`surface-panel rounded-3xl border p-5 sm:p-6 ${
+                  darkMode
+                    ? 'border-white/10 bg-slate-900/92'
+                    : 'border-stone-200/80 bg-white/96'
+                }`}>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-semibold">Ask the AI</h2>
+                      <p className={`mt-2 text-sm leading-6 ${darkMode ? 'text-slate-400' : 'text-stone-600'}`}>
+                        Write a detailed prompt, add an optional subject, and review the answer before deciding whether to save it.
+                      </p>
+                    </div>
+                    <div
+                      className={`inline-flex min-h-10 items-center rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                        loading
+                          ? 'bg-orange-500/20 text-orange-700'
+                          : aiResponse
+                            ? 'bg-teal-500/18 text-teal-700'
+                            : darkMode
+                              ? 'bg-slate-800 text-slate-400'
+                              : 'bg-stone-100 text-stone-500'
+                      }`}
+                    >
+                      {draftLabel}
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                    <label className="block">
+                      <span className={`mb-2 block text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-stone-700'}`}>
+                        Question
+                      </span>
+                      <textarea
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        placeholder="Explain the difference between mitosis and meiosis with an easy memory trick."
+                        className={`min-h-52 w-full rounded-2xl border px-4 py-3 outline-none transition ${
+                          darkMode
+                            ? 'border-white/10 bg-slate-950/75 text-slate-100 placeholder:text-slate-500 focus:border-amber-300'
+                            : 'border-stone-200 bg-stone-50 text-slate-900 placeholder:text-stone-400 focus:border-teal-700'
+                        }`}
+                        disabled={loading}
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className={`mb-2 block text-sm font-medium ${darkMode ? 'text-slate-300' : 'text-stone-700'}`}>
+                        Subject
+                      </span>
+                      <input
+                        type="text"
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        placeholder="Biology, algebra, history..."
+                        className={`h-13 w-full rounded-2xl border px-4 outline-none transition ${
+                          darkMode
+                            ? 'border-white/10 bg-slate-950/75 text-slate-100 placeholder:text-slate-500 focus:border-amber-300'
+                            : 'border-stone-200 bg-stone-50 text-slate-900 placeholder:text-stone-400 focus:border-teal-700'
+                        }`}
+                        disabled={loading}
+                      />
+                    </label>
+
+                    <button
+                      type="submit"
+                      disabled={loading || !input.trim()}
+                      className={`app-button min-h-13 w-full justify-center disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-44 ${
+                        darkMode
+                          ? 'bg-amber-300 text-slate-950 hover:bg-amber-200'
+                          : 'bg-teal-900 text-white hover:bg-teal-800'
+                      }`}
+                    >
+                      {loading ? 'Thinking...' : 'Generate answer'}
+                    </button>
+                  </form>
+
+                  {status && (
+                    <div
+                      className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${
+                        status.type === 'success'
+                          ? darkMode
+                            ? 'border-amber-300/30 bg-amber-950/35 text-amber-100'
+                            : 'border-teal-200 bg-teal-50 text-teal-800'
+                          : darkMode
+                            ? 'border-red-500/30 bg-red-950/35 text-red-200'
+                            : 'border-red-200 bg-red-50 text-red-700'
+                      }`}
+                    >
+                      {status.text}
+                    </div>
+                  )}
+
+                  {aiResponse && tempDelete && (
+                    <div className={`mt-6 rounded-3xl border p-5 sm:p-6 ${
+                      darkMode
+                        ? 'border-amber-300/20 bg-amber-950/20'
+                        : 'border-teal-200 bg-teal-50/80'
+                    }`}>
+                      <p className="text-sm font-semibold">Generated answer</p>
+                      <p className={`mt-1 text-sm ${darkMode ? 'text-slate-400' : 'text-stone-600'}`}>
+                        Save it if you want it in your long-term study history.
+                      </p>
+                      <p className="mt-4 whitespace-pre-wrap text-sm leading-7">{aiResponse}</p>
+                      <div className="mt-5 flex flex-wrap justify-end gap-3">
+                        <button
+                          onClick={handleSaveQA}
+                          disabled={loading}
+                          className="app-button min-w-36 bg-teal-800 text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Save answer
+                        </button>
+                        <button
+                          onClick={() => {
+                            setStatus(null)
+                            clearDraft(setInput, setSubject, setAiResponse, setTempDelete)
+                          }}
+                          disabled={loading}
+                          className={`app-button min-w-34 border disabled:cursor-not-allowed disabled:opacity-60 ${
+                            darkMode
+                              ? 'border-white/10 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                              : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+                          }`}
+                        >
+                          Discard
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                <section className={`surface-panel rounded-3xl border p-5 sm:p-6 ${
+                  darkMode
+                    ? 'border-white/10 bg-slate-900/92'
+                    : 'border-stone-200/80 bg-white/96'
+                }`}>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-semibold">Saved study library</h2>
+                      <p className={`mt-2 text-sm leading-6 ${darkMode ? 'text-slate-400' : 'text-stone-600'}`}>
+                        Browse saved questions by subject, expand answers when you need detail, and tidy the library without breaking your flow.
+                      </p>
+                    </div>
+                    <div className={`inline-flex min-h-10 items-center rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                      darkMode ? 'bg-slate-800 text-slate-400' : 'bg-stone-100 text-stone-500'
+                    }`}>
+                      {fetchingSaved ? 'Syncing' : `${savedQA.length} items`}
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    {fetchingSaved ? (
+                      <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-stone-600'}`}>Loading your saved questions...</p>
+                    ) : savedQA.length === 0 ? (
+                      <div className={`rounded-3xl border border-dashed px-5 py-8 text-center ${
+                        darkMode
+                          ? 'border-white/10 bg-slate-800/70 text-slate-300'
+                          : 'border-stone-300 bg-stone-50 text-stone-600'
+                      }`}>
+                        <p className="font-medium">No saved questions yet.</p>
+                        <p className="mt-2 text-sm leading-6">
+                          Generate an answer first, then save the ones you want to keep in your study history.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-5">
+                        {groupedSubjects.map((sub) => (
+                          <div key={sub}>
+                            <div className="mb-3 flex items-center justify-between">
+                              <h3 className={`text-sm font-semibold uppercase tracking-[0.22em] ${darkMode ? 'text-amber-200' : 'text-teal-800'}`}>
+                                {sub}
+                              </h3>
+                              <span className={`text-xs ${darkMode ? 'text-slate-500' : 'text-stone-500'}`}>
+                                {grouped[sub].length} saved
+                              </span>
+                            </div>
+
+                            <div className="space-y-3">
+                              {grouped[sub].map((qa) => (
+                                <div
+                                  key={qa.id}
+                                  className={`relative rounded-3xl border p-4 transition ${
+                                    darkMode
+                                      ? 'border-white/10 bg-slate-800/72'
+                                      : 'border-stone-200 bg-stone-50/90'
+                                  }`}
+                                >
+                                  <div
+                                    onClick={() => toggleExpand(qa.id)}
+                                    className="cursor-pointer pr-0 sm:pr-28"
+                                  >
+                                    {editingId === qa.id ? (
+                                      <div className="space-y-3">
+                                        <input
+                                          type="text"
+                                          value={editQuestion}
+                                          onChange={(e) => setEditQuestion(e.target.value)}
+                                          className="h-12 w-full rounded-2xl border border-stone-200 bg-white px-3 text-slate-900 outline-none"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <input
+                                          type="text"
+                                          value={editSubject}
+                                          onChange={(e) => setEditSubject(e.target.value)}
+                                          className="h-12 w-full rounded-2xl border border-stone-200 bg-white px-3 text-slate-900 outline-none"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <div className="flex flex-wrap gap-2">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleUpdate(qa.id)
+                                            }}
+                                            className={`app-button min-w-37 ${
+                                              darkMode
+                                                ? 'bg-amber-300 text-slate-950 hover:bg-amber-200'
+                                                : 'bg-teal-900 text-white hover:bg-teal-800'
+                                            }`}
+                                          >
+                                            Save changes
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setEditingId(null)
+                                            }}
+                                            className="app-button min-w-32 bg-stone-200 text-stone-800 hover:bg-stone-300"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <p className="text-sm font-semibold leading-6">
+                                          {qa.question}
+                                        </p>
+                                        <p className={`mt-2 text-xs uppercase tracking-[0.2em] ${darkMode ? 'text-slate-500' : 'text-stone-500'}`}>
+                                          Click to {expanded[qa.id] ? 'collapse' : 'expand'}
+                                        </p>
+                                        {expanded[qa.id] && (
+                                          <div className="mt-4 space-y-3">
+                                            <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${darkMode ? 'text-amber-200' : 'text-teal-800'}`}>
+                                              {qa.subject || 'General'}
+                                            </p>
+                                            <p className="whitespace-pre-wrap text-sm leading-7">
+                                              {qa.answer}
+                                            </p>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                setEditingId(qa.id)
+                                                setEditQuestion(qa.question)
+                                                setEditSubject(qa.subject || '')
+                                              }}
+                                              className={`app-button min-w-32 ${
+                                                darkMode
+                                                  ? 'bg-amber-300 text-slate-950 hover:bg-amber-200'
+                                                  : 'bg-teal-900 text-white hover:bg-teal-800'
+                                              }`}
+                                            >
+                                              Edit entry
+                                            </button>
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {editingId !== qa.id && (
+                                    <div className="mt-4 flex justify-end sm:absolute sm:right-4 sm:top-4 sm:mt-0">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setDeleteModalOpenId(qa.id)
+                                        }}
+                                        className="app-button min-h-10 min-w-28 bg-red-600 px-4 text-xs uppercase tracking-[0.12em] text-white hover:bg-red-700"
+                                      >
+                                        Delete
+                                      </button>
+                                      {deleteModalOpenId === qa.id && (
+                                        <div
+                                          className={`absolute right-0 top-full z-10 mt-2 w-[min(18rem,80vw)] rounded-3xl border p-4 shadow-xl ${
+                                            darkMode
+                                              ? 'border-white/10 bg-slate-900 text-slate-100'
+                                              : 'border-stone-200 bg-white text-slate-800'
+                                          }`}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <p className="text-sm leading-6">
+                                            Delete this saved question from your study history?
+                                          </p>
+                                          <div className="mt-4 flex justify-end gap-2">
+                                            <button
+                                              onClick={() => setDeleteModalOpenId(null)}
+                                              className={`app-button min-h-9 min-w-22 px-3 text-xs ${
+                                                darkMode
+                                                  ? 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                                                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                                              }`}
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteSaved(qa.id)}
+                                              className="app-button min-h-9 min-w-22 bg-red-600 px-3 text-xs text-white hover:bg-red-700"
+                                            >
+                                              Delete
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
+            </main>
+          </div>
         </div>
       </div>
     </Protected>
