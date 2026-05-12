@@ -53,7 +53,7 @@ Gjatë prezantimit do të demonstroj këtë rrjedhë kryesore:
 
 ---
 
-## ⚙️ 3. Pjesët teknike
+## ⚙️ 3. Pjesët teknike (1–2 minuta)
 
 Do të përmend shkurt:
 
