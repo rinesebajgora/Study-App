@@ -9,7 +9,7 @@ Përdoruesit mund të:
 - ruajnë përgjigjet
 - përditësojnë dhe fshijnë pyetjet
 - organizojnë pyetjet sipas subject-it
-- përdorin dark mode
+- shohin një landing page dhe dashboard të rregulluar
 
 ---
 
@@ -27,7 +27,7 @@ Përdoruesit mund të:
 - AI Q&A system
 - CRUD për pyetje (Create, Read, Update, Delete)
 - Organizim sipas subject-it
-- Dark Mode (ruhet në localStorage)
+- Landing page profesionale
 - UI responsive dhe moderne
 - Protected routes (vetëm për user të loguar)
 

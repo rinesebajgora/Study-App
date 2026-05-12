@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import AuthShell from '../components/AuthShell'
 import { supabase } from '../lib/supabase'
-import { useDarkMode } from '../lib/useDarkMode'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -15,7 +14,7 @@ export default function SignupPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
-  const { darkMode } = useDarkMode()
+  const darkMode = false
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

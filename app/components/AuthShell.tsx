@@ -24,19 +24,21 @@ export default function AuthShell({
       }`}
     >
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3 px-1 py-2">
-          <div
-            className={`flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-semibold ${
-              darkMode ? 'bg-amber-300 text-slate-950' : 'bg-teal-900 text-teal-50'
-            }`}
-          >
-            SA
-          </div>
-          <div>
-            <div className="text-sm font-semibold">StudyAI</div>
-            <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-stone-500'}`}>
-              Study assistant workspace
-            </p>
+        <div className="flex items-center justify-between gap-4 px-1 py-2">
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-semibold ${
+                darkMode ? 'bg-amber-300 text-slate-950' : 'bg-teal-900 text-teal-50'
+              }`}
+            >
+              SA
+            </div>
+            <div>
+              <div className="text-sm font-semibold">StudyAI</div>
+              <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-stone-500'}`}>
+                Study assistant workspace
+              </p>
+            </div>
           </div>
         </div>
 
@@ -70,9 +72,9 @@ export default function AuthShell({
 
             <div className="mt-10 space-y-4">
               {[
-                ['Focused workflow', 'Ask, review, and save answers in one calm workspace.'],
-                ['Useful history', 'Keep the explanations worth revisiting and group them by subject.'],
-                ['Organized study', 'Keep your questions, answers, and subjects together in one place.'],
+                ['AI explanations', 'Ask for clear explanations, examples, summaries, and revision help.'],
+                ['Saved library', 'Keep important answers and organize them by school subject.'],
+                ['Clean workspace', 'Responsive layout, helpful validation, and a protected dashboard.'],
               ].map(([label, copy]) => (
                 <div
                   key={label}

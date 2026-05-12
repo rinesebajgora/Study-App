@@ -5,12 +5,13 @@ export interface QA {
   question: string
   answer: string
   subject?: string
+  created_at?: string
 }
 
 export async function fetchQuestions(userId: string) {
   return supabase
     .from('questions')
-    .select('id, question, answer, subject')
+    .select('id, question, answer, subject, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 }
