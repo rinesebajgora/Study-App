@@ -1,56 +1,66 @@
-# StudyAI – AI Study Assistant
+# StudyAI - Student Success Platform
 
-## 📌 Description
-StudyAI është një aplikacion për studim me AI që ndihmon përdoruesit të bëjnë pyetje dhe të marrin përgjigje inteligjente për tema të ndryshme.
+StudyAI is a student success workspace that helps students plan their study work, ask AI-powered questions, save useful notes, and track progress from one protected dashboard.
 
-Përdoruesit mund të:
-- regjistrohen dhe login
-- bëjnë pyetje tek AI
-- ruajnë përgjigjet
-- përditësojnë dhe fshijnë pyetjet
-- organizojnë pyetjet sipas subject-it
-- shohin një landing page dhe dashboard të rregulluar
+## Features
 
----
+- User signup, login, logout, and protected dashboard access
+- AI tutor question and answer flow powered by Groq
+- Save, edit, delete, search, filter, pin, export, and print study notes
+- Generate revision summaries from saved answers
+- Organize notes by subject
+- AI exam planner with saved preparation plans
+- Responsive UI built with Next.js and Tailwind CSS
 
-## 🚀 Technologies
+## Tech Stack
+
 - Next.js
 - React
-- Supabase (Authentication & Database)
+- TypeScript
 - Tailwind CSS
-- Vercel (Deployment)
+- Supabase Authentication and Database
+- Groq API
+- Vercel deployment
 
----
+## Local Setup
 
-## ✨ Features
-- Authentication (Login / Signup / Logout)
-- AI Q&A system
-- CRUD për pyetje (Create, Read, Update, Delete)
-- Organizim sipas subject-it
-- Landing page profesionale
-- UI responsive dhe moderne
-- Protected routes (vetëm për user të loguar)
+```bash
+npm install
+npm run dev
+```
 
----
+Open the local URL shown by Next.js.
 
-## ⚙️ Setup
+## Environment Variables
 
-npm install  
-npm run dev  
+Create `.env.local` with:
 
----
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+GROQ_API_KEY=your_groq_api_key
+```
 
-## 🔐 Environment Variables
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url  
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key  
-GROQ_API_KEY=your_api_key  
+## Database Setup
 
----
+Run the SQL in [docs/supabase-schema.sql](docs/supabase-schema.sql) inside the Supabase SQL editor. It creates the required tables and Row Level Security policies for:
 
-## 🌐 Live Demo
-https://study-app-rinesa1.vercel.app  
+- `questions`
+- `pinned_questions`
+- `revision_summaries`
+- `exam_plans`
 
----
+## Useful Scripts
 
-##  Author
-Rinesë Bajgora  
+```bash
+npm run lint
+npm run build
+```
+
+## Live Demo
+
+https://study-app-rinesa1.vercel.app
+
+## Author
+
+Rinesa Bajgora

@@ -1,97 +1,98 @@
-# 🎤 Demo Plan – StudyAI
+# Demo Plan - StudyAI Student Success Platform
 
----
+## 1. Project Introduction
 
-## 📌 1. Prezantimi i projektit (1 minutë)
+StudyAI is a student success platform that helps students plan study work, ask AI-powered questions, save useful answers, and organize revision in one protected workspace.
 
-StudyAI është një aplikacion web që përdor inteligjencën artificiale për të ndihmuar përdoruesit të bëjnë pyetje dhe të marrin përgjigje të shpejta dhe të organizuara.
+The app is designed for:
 
-Ky aplikacion është dizajnuar për:
-- studentë
-- nxënës
-- persona që duan të mësojnë në mënyrë më efikase
+- students
+- pupils
+- anyone who wants a more organized study workflow
 
-Problemi që zgjidh:
-- kërkimi i informacionit është i shpërndarë dhe i ngadalshëm  
-- përdoruesit nuk kanë një vend për të ruajtur dhe organizuar përgjigjet  
+The problem it solves:
 
-Zgjidhja:
-- një platformë e vetme ku mund të bësh pyetje, të marrësh përgjigje dhe t’i ruash ato
+- study information is often scattered across many tools
+- students need a simple place to save and revisit useful explanations
+- revision tasks and deadlines are easy to forget
 
----
+The solution:
 
-## 🔄 2. Flow kryesor i demos (3–4 minuta)
+- one workspace for AI answers, saved notes, summaries, pinned items, and exam plans
 
-Gjatë prezantimit do të demonstroj këtë rrjedhë kryesore:
+## 2. Main Demo Flow
 
-### 2.1 Autentikimi
-- Hyrje në aplikacion (login)
-- Tregoj që vetëm user i loguar ka akses (protected routes)
+### Authentication
 
-### 2.2 Bërja e një pyetjeje
-- Shkruaj një pyetje (p.sh. "Explain photosynthesis")
-- Klikoj “Ask AI”
-- Tregoj loading state ("Thinking...")
+- Open the app and log in
+- Show that the dashboard is protected
+- Log out and confirm protected access redirects to login
 
-### 2.3 Marrja e përgjigjes nga AI
-- Shfaqet përgjigja e AI
-- Tregoj që përgjigja është e formatuar dhe e lexueshme
+### Ask AI
 
-### 2.4 Ruajtja e përgjigjes
-- Klikoj “Save”
-- Tregoj që ruhet në database (Supabase)
+- Enter a study question, for example: `Explain photosynthesis in simple steps`
+- Click `Generate answer`
+- Show the loading state
+- Review the generated answer
 
-### 2.5 Organizimi sipas subject-it
-- Shtoj subject (p.sh. Biology)
-- Tregoj grouping sipas subject-it në dashboard
+### Save and Organize
 
-### 2.6 Edit dhe Delete
-- Update një pyetje
-- Delete një pyetje me confirmation modal
+- Add a subject, for example `Biology`
+- Save the answer
+- Show that the note appears in the saved library
+- Search and filter by subject
+- Pin the note
 
-👉 Ky flow tregon përdorimin real të aplikacionit nga një user
+### Revision Summary
 
----
+- Select a saved note
+- Click `Summary`
+- Show the generated revision summary
 
-## ⚙️ 3. Pjesët teknike (1–2 minuta)
+### Edit and Delete
 
-Do të përmend shkurt:
+- Edit a saved question or subject
+- Delete a saved note with confirmation
 
-- Next.js (frontend + routing)
-- Supabase (authentication + database)
-- API route për AI (chat endpoint)
-- Refactor në services për clean architecture
-- State management me React hooks
+### AI Exam Planner
 
----
+- Add an exam subject and exam date
+- Add an optional goal
+- Generate a practical AI study plan
+- Show that the plan is saved in the dashboard
+- Open the plan as a study note draft if it should be stored in the notes library
 
-## ✅ 4. Çfarë kam kontrolluar para demos
+## 3. Technical Points
 
-- Login dhe signup funksionojnë pa probleme
-- Session ruhet dhe nuk humbet gjatë përdorimit
-- API për AI jep përgjigje valide
-- Error handling funksionon
-- Save / Update / Delete funksionojnë
-- UI nuk crash-on në raste edge
-- Environment variables janë të konfiguruara saktë
-- Live demo është testuar në Vercel
+Briefly mention:
 
----
+- Next.js App Router for routes and API endpoints
+- Supabase Authentication for user accounts
+- Supabase Database with Row Level Security
+- Groq API for AI responses
+- Protected `/api/chat` endpoint that requires a logged-in user
+- React state and reusable dashboard components
 
-## 🆘 5. Plan B (nëse live demo dështon)
+## 4. Pre-Demo Checklist
 
-Nëse live demo nuk punon:
+- Login and signup work
+- Session restore works after refresh
+- `/api/chat` returns valid AI responses only for authenticated users
+- Save, edit, delete, pin, and summary flows work
+- AI exam plans can be created, saved, opened as note drafts, and deleted
+- Supabase tables and RLS policies are installed
+- UI works on desktop and mobile sizes
+- Production build passes with `npm run build`
 
-- Do të përdor versionin lokal (localhost)
-- Do të tregoj screenshots të aplikacionit
-- Do të shpjegoj flow-n manualisht
-- Repo në GitHub është gjithmonë funksionale
+## 5. Backup Plan
 
----
+If the live demo fails:
 
-## 🎯 Qëllimi i demos
+- use the local development server
+- show the source code and database schema
+- explain the flow manually using the demo plan
+- show screenshots if available
 
-Të tregoj:
-- si funksionon aplikacioni
-- vlerën për përdoruesin
-- strukturën teknike pa hyrë në detaje të panevojshme
+## Demo Goal
+
+Show that StudyAI is not just a landing page, but a complete study workflow with authentication, AI answers, saved notes, revision summaries, and exam planning.
