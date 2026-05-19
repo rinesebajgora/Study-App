@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { QA, FilterMode, PromptSuggestion } from '../types'
 import EmptyState from './EmptyState'
 
@@ -91,6 +92,14 @@ export default function SavedLibrary({
   onDiscardDraftFlashcards,
   onDeleteRequest,
 }: SavedLibraryProps) {
+  useEffect(() => {
+    if (!selectedQA?.id) return
+    document.querySelector(`[data-note-id="${selectedQA.id}"]`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  }, [selectedQA?.id])
+
   const subjectCounts = allSubjects.map((sub) => ({
     name: sub,
     total: savedQA.filter((qa) => (qa.subject || 'General') === sub).length,
@@ -275,6 +284,7 @@ export default function SavedLibrary({
                         return (
                           <article
                             key={qa.id}
+                            data-note-id={qa.id}
                             className={`rounded-2xl border bg-white p-3 transition ${
                               selected
                                 ? 'border-teal-700 bg-teal-50'

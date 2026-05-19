@@ -1,5 +1,9 @@
 'use client'
 
+import { ChangeEvent, DragEvent, useRef, useState } from 'react'
+import mammoth from 'mammoth'
+import type { TextItem } from 'pdfjs-dist/types/src/display/api'
+
 type ImportPreview = {
   title: string
   note: string
@@ -8,12 +12,14 @@ type ImportPreview = {
 
 type ImportMaterialProps = {
   material: string
+  fileMaterial: string
   subject: string
   preview: ImportPreview | null
   importing: boolean
   saving: boolean
   subjectOptions: string[]
   onMaterialChange: (value: string) => void
+  onFileMaterialChange: (value: string) => void
   onSubjectChange: (value: string) => void
   onImport: () => void
   onSave: () => void
@@ -22,17 +28,120 @@ type ImportMaterialProps = {
 
 export default function ImportMaterial({
   material,
+  fileMaterial,
   subject,
   preview,
   importing,
   saving,
   subjectOptions,
   onMaterialChange,
+  onFileMaterialChange,
   onSubjectChange,
   onImport,
   onSave,
   onDiscard,
 }: ImportMaterialProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [fileMessage, setFileMessage] = useState<string | null>(null)
+  const [draggingFiles, setDraggingFiles] = useState(false)
+
+  const readableFileTypes = new Set([
+    'csv',
+    'html',
+    'htm',
+    'json',
+    'log',
+    'md',
+    'rtf',
+    'text',
+    'txt',
+    'xml',
+    'yaml',
+    'yml',
+  ])
+
+  const extractFileText = async (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+
+    if (extension === 'pdf') {
+      const pdfjsLib = await import('pdfjs-dist')
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.mjs',
+        import.meta.url
+      ).toString()
+      const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise
+      const pages: string[] = []
+
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber)
+        const content = await page.getTextContent()
+        const pageText = content.items
+          .filter((item): item is TextItem => 'str' in item)
+          .map((item) => item.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+
+        if (pageText) pages.push(pageText)
+      }
+
+      return pages.join('\n\n').trim()
+    }
+
+    if (extension === 'docx') {
+      const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
+      return result.value.trim()
+    }
+
+    const canReadAsText = file.type.startsWith('text/') || readableFileTypes.has(extension)
+    if (!canReadAsText) return null
+
+    return (await file.text()).trim()
+  }
+
+  const importFiles = async (files: File[]) => {
+    const selectedFiles = files
+    if (selectedFiles.length === 0) return
+
+    const importedSections: string[] = []
+    const skippedFiles: string[] = []
+
+    for (const file of selectedFiles) {
+      try {
+        const text = await extractFileText(file)
+        if (!text) {
+          skippedFiles.push(file.name)
+          continue
+        }
+
+        importedSections.push(`Source: ${file.name}\n\n${text}`)
+      } catch {
+        skippedFiles.push(file.name)
+      }
+    }
+
+    if (importedSections.length > 0) {
+      onFileMaterialChange([fileMaterial.trim(), ...importedSections].filter(Boolean).join('\n\n---\n\n'))
+    }
+
+    if (skippedFiles.length > 0) {
+      setFileMessage(`Imported ${importedSections.length} file(s). Skipped unsupported files: ${skippedFiles.join(', ')}.`)
+    } else {
+      setFileMessage(`Imported ${importedSections.length} file(s).`)
+    }
+  }
+
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    await importFiles(Array.from(event.target.files ?? []))
+    event.target.value = ''
+  }
+
+  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setDraggingFiles(false)
+    await importFiles(Array.from(event.dataTransfer.files ?? []))
+  }
+
   return (
     <section className="surface-panel rounded-3xl border border-stone-200/80 bg-white/96 p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -47,11 +156,47 @@ export default function ImportMaterial({
         </span>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 p-4">
-        <p className="text-sm font-semibold text-slate-800">PDF upload</p>
-        <p className="mt-2 text-sm leading-6 text-stone-600">
-          PDF upload can be added later. For now, paste the text from your document below.
-        </p>
+      <div
+        onDragEnter={(event) => {
+          event.preventDefault()
+          setDraggingFiles(true)
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+          setDraggingFiles(false)
+        }}
+        onDrop={handleDrop}
+        className={`mt-6 rounded-2xl border border-dashed p-4 transition ${
+          draggingFiles ? 'border-teal-700 bg-teal-50' : 'border-stone-300 bg-stone-50'
+        }`}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">File import</p>
+            <p className="mt-2 text-sm leading-6 text-stone-600">
+              Drop files here or choose documents. The file text stays hidden, but it will be used when generating the import preview.
+            </p>
+            {fileMessage && <p className="mt-2 text-sm text-teal-800">{fileMessage}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing || saving}
+            className="app-button min-h-10 border border-stone-200 bg-white px-4 text-sm text-stone-700 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Choose files
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm,.xml,.rtf,.log,.yaml,.yml,text/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={handleFileUpload}
+            className="hidden"
+            disabled={importing || saving}
+          />
+        </div>
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -87,7 +232,7 @@ export default function ImportMaterial({
           <button
             type="button"
             onClick={onImport}
-            disabled={importing || saving || material.trim().length < 80}
+            disabled={importing || saving || [material, fileMaterial].join('\n').trim().length < 80}
             className="app-button mt-4 min-h-12 w-full justify-center bg-teal-900 px-4 text-sm text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {importing ? 'Importing...' : 'Generate preview'}

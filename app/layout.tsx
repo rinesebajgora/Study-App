@@ -4,8 +4,8 @@ import React, { ReactNode } from "react"
 import { AuthProvider } from "./context/AuthContext"
 
 export const metadata: Metadata = {
-  title: "StudyAI",
-  description: "Study smarter with AI-generated explanations and saved study history.",
+  title: "StudyMate AI",
+  description: "AI study workspace for notes, flashcards, exam planning, imports, and revision analytics.",
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

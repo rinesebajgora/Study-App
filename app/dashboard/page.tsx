@@ -30,17 +30,17 @@ import {
   upsertRevisionSummary,
 } from '../lib/questions'
 import AskAiPanel from './components/AskAiPanel'
-import DashboardOverview, { ProgressStats } from './components/DashboardOverview'
+import DashboardOverview, { DashboardAnalytics, ProgressStats } from './components/DashboardOverview'
 import DashboardSidebar from './components/DashboardSidebar'
 import ExamPlanner, { DraftExamPlan } from './components/ExamPlanner'
 import FlashcardsPanel from './components/FlashcardsPanel'
+import GlobalSearch, { GlobalSearchResult } from './components/GlobalSearch'
 import SavedLibrary from './components/SavedLibrary'
 import SubjectManager, { SubjectCard } from './components/SubjectManager'
 import ConfirmModal from './components/ConfirmModal'
 import Toast from './components/Toast'
 import OnboardingPanel from './components/OnboardingPanel'
 import ProfileSettings from './components/ProfileSettings'
-import StudySession from './components/StudySession'
 import ImportMaterial from './components/ImportMaterial'
 import { FilterMode, PromptSuggestion, StatusMessage } from './types'
 
@@ -95,6 +95,15 @@ function normalizeFlashcardFront(value: string) {
   return value.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
+function toDayNumber(isoDate: string) {
+  const [year, month, day] = isoDate.slice(0, 10).split('-').map(Number)
+  return Math.floor(Date.UTC(year, month - 1, day) / 86400000)
+}
+
+function getIsoDate(value?: string | null) {
+  return value ? new Date(value).toISOString().slice(0, 10) : null
+}
+
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -118,12 +127,14 @@ export default function DashboardPage() {
   const [savingProfile, setSavingProfile] = useState(false)
   const [tempDelete, setTempDelete] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [globalSearchTerm, setGlobalSearchTerm] = useState('')
   const [subjectFilter, setSubjectFilter] = useState('All')
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
   const [activeSection, setActiveSection] = useState<string | null>(null)
-  const [activeStudySubject, setActiveStudySubject] = useState<string | null>(null)
   const [pinnedIds, setPinnedIds] = useState<string[]>([])
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
+  const [focusedFlashcardId, setFocusedFlashcardId] = useState<string | null>(null)
+  const [focusedExamPlanId, setFocusedExamPlanId] = useState<string | null>(null)
   const [summaries, setSummaries] = useState<Record<string, string>>({})
   const [summarizingId, setSummarizingId] = useState<string | null>(null)
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
@@ -144,6 +155,7 @@ export default function DashboardPage() {
   const [planningExam, setPlanningExam] = useState(false)
   const [savingExamPlan, setSavingExamPlan] = useState(false)
   const [importMaterial, setImportMaterial] = useState('')
+  const [importFileMaterial, setImportFileMaterial] = useState('')
   const [importSubject, setImportSubject] = useState('')
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const [importingMaterial, setImportingMaterial] = useState(false)
@@ -336,35 +348,170 @@ export default function DashboardPage() {
     ['Upcoming exams', `${progressStats.upcomingExams}`],
     ['Pinned notes', `${progressStats.pinnedNotes}`],
   ]
+  const reviewedDateSet = new Set(
+    flashcards
+      .map((card) => getIsoDate(card.reviewedAt))
+      .filter((date): date is string => Boolean(date))
+  )
+  let studyStreak = 0
+  let dayCursor = toDayNumber(todayIso)
+  while (reviewedDateSet.has(new Date(dayCursor * 86400000).toISOString().slice(0, 10))) {
+    studyStreak += 1
+    dayCursor -= 1
+  }
+  const reviewedToday = flashcards.filter((card) => getIsoDate(card.reviewedAt) === todayIso).length
+  const weakestSubjects = allSubjects
+    .map((name) => {
+      const subjectCards = flashcards.filter((card) => (card.subject || 'General') === name)
+      const unreviewed = subjectCards.filter((card) => card.reviewCount === 0).length
+      const averageReviews =
+        subjectCards.length === 0
+          ? 0
+          : subjectCards.reduce((sum, card) => sum + card.reviewCount, 0) / subjectCards.length
+
+      return {
+        subject: name,
+        score: unreviewed * 2 + Math.max(0, 3 - averageReviews),
+        detail:
+          subjectCards.length === 0
+            ? 'No flashcards created yet.'
+            : `${unreviewed}/${subjectCards.length} cards unreviewed, ${averageReviews.toFixed(1)} avg reviews.`,
+      }
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.subject.localeCompare(b.subject))
+    .slice(0, 3)
+  const todayDay = toDayNumber(todayIso)
+  const upcomingDeadlines = examPlans.filter((plan) => {
+    const examDay = toDayNumber(plan.examDate)
+    return examDay >= todayDay && examDay <= todayDay + 14
+  }).length
+  const dashboardAnalytics: DashboardAnalytics = {
+    studyStreak,
+    reviewedToday,
+    weakestSubjects: weakestSubjects.map(({ subject, detail }) => ({ subject, detail })),
+    upcomingDeadlines,
+  }
   const hasOnboardingWork = allSubjects.length === 0 || savedQA.length === 0 || flashcards.length === 0
 
-  const subjectCards: SubjectCard[] = allSubjects.map((name) => {
-    const matchingPlans = examPlans.filter((plan) => (plan.subject || 'General') === name)
-    const upcomingPlan = matchingPlans
-      .filter((plan) => plan.examDate >= todayIso)
-      .sort((a, b) => a.examDate.localeCompare(b.examDate))[0]
+  const subjectCards: SubjectCard[] = useMemo(
+    () =>
+      allSubjects.map((name) => {
+        const matchingPlans = examPlans.filter((plan) => (plan.subject || 'General') === name)
+        const upcomingPlan = matchingPlans
+          .filter((plan) => plan.examDate >= todayIso)
+          .sort((a, b) => a.examDate.localeCompare(b.examDate))[0]
 
-    return {
-      name,
-      noteCount: savedQA.filter((qa) => (qa.subject || 'General') === name).length,
-      examPlanCount: matchingPlans.length,
-      pinnedCount: savedQA.filter((qa) => (qa.subject || 'General') === name && pinnedIds.includes(qa.id)).length,
-      nextExamDate: upcomingPlan?.examDate,
-      managedId: subjects.find((item) => item.name === name)?.id,
+        return {
+          name,
+          noteCount: savedQA.filter((qa) => (qa.subject || 'General') === name).length,
+          examPlanCount: matchingPlans.length,
+          pinnedCount: savedQA.filter((qa) => (qa.subject || 'General') === name && pinnedIds.includes(qa.id)).length,
+          nextExamDate: upcomingPlan?.examDate,
+          managedId: subjects.find((item) => item.name === name)?.id,
+        }
+      }),
+    [allSubjects, examPlans, pinnedIds, savedQA, subjects, todayIso]
+  )
+  const globalSearchResults = useMemo<GlobalSearchResult[]>(() => {
+    const query = globalSearchTerm.toLowerCase().trim()
+    if (!query) return []
+
+    const matches = (parts: Array<string | undefined | null>) =>
+      parts.some((part) => (part ?? '').toLowerCase().includes(query))
+
+    const noteResults: GlobalSearchResult[] = savedQA
+      .filter((qa) => matches([qa.question, qa.subject, 'note', 'notes', 'study notes']))
+      .map((qa) => ({
+        id: qa.id,
+        type: 'note',
+        title: qa.question,
+        description: qa.answer,
+        subject: qa.subject || 'General',
+      }))
+
+    const flashcardResults: GlobalSearchResult[] = flashcards
+      .filter((card) => matches([card.front, card.subject, 'flashcard', 'flashcards', 'card', 'cards']))
+      .map((card) => ({
+        id: card.id,
+        type: 'flashcard',
+        title: card.front,
+        description: card.back,
+        subject: card.subject || 'General',
+      }))
+
+    const subjectResults: GlobalSearchResult[] = subjectCards
+      .filter((subject) => matches([subject.name, 'subject', 'subjects']))
+      .map((subject) => ({
+        id: subject.name,
+        type: 'subject',
+        title: subject.name,
+        description: `${subject.noteCount} notes, ${subject.examPlanCount} exam plans, ${subject.pinnedCount} pinned.`,
+        subject: subject.name,
+      }))
+
+    const examResults: GlobalSearchResult[] = examPlans
+      .filter((plan) => matches([plan.subject, plan.goal, plan.examDate, 'exam', 'exams', 'exam plan', 'exam plans']))
+      .map((plan) => ({
+        id: plan.id,
+        type: 'exam',
+        title: `${plan.subject} exam on ${plan.examDate}`,
+        description: plan.goal || plan.plan,
+        subject: plan.subject || 'General',
+      }))
+
+    const typePriority = (result: GlobalSearchResult) => {
+      if (['flashcard', 'flashcards', 'card', 'cards'].includes(query) && result.type === 'flashcard') return 0
+      if (['note', 'notes', 'study notes'].includes(query) && result.type === 'note') return 0
+      if (['subject', 'subjects'].includes(query) && result.type === 'subject') return 0
+      if (['exam', 'exams', 'exam plan', 'exam plans'].includes(query) && result.type === 'exam') return 0
+      return 1
     }
-  })
-  const studySessionNotes = activeStudySubject
-    ? savedQA.filter((qa) => (qa.subject || 'General') === activeStudySubject)
-    : []
-  const studySessionFlashcards = activeStudySubject
-    ? flashcards.filter((card) => (card.subject || 'General') === activeStudySubject)
-    : []
 
-  const startStudySession = (subjectName: string) => {
-    setActiveStudySubject(subjectName)
-    setActiveSection('study-session')
+    return [...noteResults, ...flashcardResults, ...subjectResults, ...examResults]
+      .sort((a, b) => typePriority(a) - typePriority(b))
+      .slice(0, 12)
+  }, [examPlans, flashcards, globalSearchTerm, savedQA, subjectCards])
+
+  const handleOpenGlobalSearchResult = (result: GlobalSearchResult) => {
+    const scrollTo = (selector: string) => {
+      window.setTimeout(() => {
+        document.querySelector(selector)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        })
+      }, 50)
+    }
+
+    if (result.type === 'note') {
+      setActiveSection('study-notes')
+      setSubjectFilter(result.subject ?? 'All')
+      setFilterMode('all')
+      setSelectedQuestionId(result.id)
+      setSearchTerm('')
+      scrollTo(`[data-note-id="${result.id}"]`)
+      return
+    }
+
+    if (result.type === 'flashcard') {
+      setActiveSection('flashcards')
+      setFocusedFlashcardId(result.id)
+      scrollTo(`[data-flashcard-id="${result.id}"]`)
+      return
+    }
+
+    if (result.type === 'subject') {
+      setActiveSection('subjects')
+      setSubjectFilter(result.title)
+      setFilterMode('all')
+      scrollTo(`[data-subject-id="${encodeURIComponent(result.title)}"]`)
+      return
+    }
+
+    setActiveSection('exam-planner')
+    setFocusedExamPlanId(result.id)
+    scrollTo(`[data-exam-plan-id="${result.id}"]`)
   }
-
   const syncSubject = useCallback(async (name: string) => {
     const normalizedName = name.trim()
     if (!user || !normalizedName) return
@@ -767,8 +914,10 @@ Answer: ${qa.answer}`
   const handleImportMaterial = async () => {
     if (!user || importingMaterial) return
 
-    if (importMaterial.trim().length < 80) {
-      setStatus({ type: 'error', text: 'Paste more material before importing.' })
+    const materialForImport = [importMaterial, importFileMaterial].join('\n\n').trim()
+
+    if (materialForImport.length < 80) {
+      setStatus({ type: 'error', text: 'Add more material before importing.' })
       return
     }
 
@@ -791,7 +940,7 @@ Answer: ${qa.answer}`
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          material: importMaterial,
+          material: materialForImport,
           subject: importSubject.trim() || 'General',
         }),
       })
@@ -868,6 +1017,7 @@ Answer: ${qa.answer}`
 
       setFlashcards((prev) => [...cardsResult.data, ...prev])
       setImportMaterial('')
+      setImportFileMaterial('')
       setImportSubject('')
       setImportPreview(null)
       setSelectedQuestionId(savedNote.id)
@@ -1149,13 +1299,18 @@ Answer: ${qa.answer}`
             />
 
             <main className="min-w-0 space-y-6 pb-24 xl:pb-0">
+              <GlobalSearch
+                query={globalSearchTerm}
+                results={globalSearchResults}
+                onQueryChange={setGlobalSearchTerm}
+                onOpenResult={handleOpenGlobalSearchResult}
+              />
+
               <DashboardOverview
-                savedQA={savedQA}
                 examPlans={examPlans}
-                subjects={allSubjects}
                 todayIso={todayIso}
-                pinnedCount={pinnedQA.length}
                 progress={progressStats}
+                analytics={dashboardAnalytics}
               />
 
               {hasOnboardingWork && (
@@ -1209,7 +1364,6 @@ Answer: ${qa.answer}`
                     setSubjectFilter((current) => (current === value ? 'All' : value))
                     setFilterMode('all')
                   }}
-                  onStartStudying={startStudySession}
                   onDeleteManagedSubject={(id) => {
                     const subjectToDelete = subjects.find((item) => item.id === id)
                     setDeleteTarget({
@@ -1218,24 +1372,6 @@ Answer: ${qa.answer}`
                       title: 'Delete subject?',
                       description: `This removes ${subjectToDelete?.name ?? 'this subject'} from your managed subjects. Existing notes and flashcards keep their subject label.`,
                     })
-                  }}
-                />
-              </div>
-              )}
-
-              {activeSection === 'study-session' && activeStudySubject && (
-              <div id="study-session" className="scroll-mt-24">
-                <StudySession
-                  subject={activeStudySubject}
-                  notes={studySessionNotes}
-                  flashcards={studySessionFlashcards}
-                  onClose={() => {
-                    setActiveSection('subjects')
-                    setSubjectFilter(activeStudySubject)
-                  }}
-                  onOpenNotes={() => {
-                    setActiveSection('study-notes')
-                    setSubjectFilter(activeStudySubject)
                   }}
                 />
               </div>
@@ -1251,6 +1387,7 @@ Answer: ${qa.answer}`
                   goal={examGoal}
                   generating={planningExam}
                   saving={savingExamPlan}
+                  focusedPlanId={focusedExamPlanId}
                   subjectOptions={allSubjects}
                   todayIso={todayIso}
                   onSubjectChange={setExamSubject}
@@ -1264,6 +1401,7 @@ Answer: ${qa.answer}`
                   }}
                   onSaveDraft={handleSaveExamPlan}
                   onDiscardDraft={() => setDraftExamPlan(null)}
+                  onOpenImport={() => setActiveSection('import-material')}
                   onDeletePlan={(id) => {
                     setDeleteTarget({
                       type: 'exam-plan',
@@ -1377,6 +1515,7 @@ Answer: ${qa.answer}`
                   flashcards={flashcards}
                   syncing={fetchingSaved}
                   deletingId={deletingFlashcardId}
+                  focusedFlashcardId={focusedFlashcardId}
                   onOpenNotes={() => setActiveSection('study-notes')}
                   onDelete={(id) => {
                     setDeleteTarget({
@@ -1394,12 +1533,14 @@ Answer: ${qa.answer}`
               <div id="import-material" className="scroll-mt-24">
                 <ImportMaterial
                   material={importMaterial}
+                  fileMaterial={importFileMaterial}
                   subject={importSubject}
                   preview={importPreview}
                   importing={importingMaterial}
                   saving={savingImport}
                   subjectOptions={allSubjects}
                   onMaterialChange={setImportMaterial}
+                  onFileMaterialChange={setImportFileMaterial}
                   onSubjectChange={setImportSubject}
                   onImport={handleImportMaterial}
                   onSave={handleSaveImport}

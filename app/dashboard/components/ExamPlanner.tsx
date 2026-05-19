@@ -19,6 +19,7 @@ type ExamPlannerProps = {
   goal: string
   generating: boolean
   saving: boolean
+  focusedPlanId: string | null
   subjectOptions: string[]
   todayIso: string
   onSubjectChange: (value: string) => void
@@ -29,6 +30,7 @@ type ExamPlannerProps = {
   onSaveDraft: () => void
   onDiscardDraft: () => void
   onDeletePlan: (id: string) => void
+  onOpenImport: () => void
 }
 
 type PlanTask = {
@@ -127,6 +129,7 @@ export default function ExamPlanner({
   goal,
   generating,
   saving,
+  focusedPlanId,
   subjectOptions,
   todayIso,
   onSubjectChange,
@@ -137,6 +140,7 @@ export default function ExamPlanner({
   onSaveDraft,
   onDiscardDraft,
   onDeletePlan,
+  onOpenImport,
 }: ExamPlannerProps) {
   const [openPlanIds, setOpenPlanIds] = useState<string[]>([])
   const [completedTasks, setCompletedTasks] = useState<CompletedTasks>(() => {
@@ -161,6 +165,19 @@ export default function ExamPlanner({
   useEffect(() => {
     window.localStorage.setItem('studymate-exam-task-progress', JSON.stringify(completedTasks))
   }, [completedTasks])
+
+  useEffect(() => {
+    if (!focusedPlanId) return
+    const focusTimer = window.setTimeout(() => {
+      setOpenPlanIds((prev) => (prev.includes(focusedPlanId) ? prev : [focusedPlanId, ...prev]))
+      document.querySelector(`[data-exam-plan-id="${focusedPlanId}"]`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }, 0)
+
+    return () => window.clearTimeout(focusTimer)
+  }, [focusedPlanId])
 
   const toggleOpenPlan = (id: string) => {
     setOpenPlanIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [id, ...prev]))
@@ -242,9 +259,18 @@ export default function ExamPlanner({
             Create a focused plan from an exam date, goal, and subject. AI helps generate the routine, but the plan stays attached to your workspace.
           </p>
         </div>
-        <span className="rounded-full bg-teal-50 px-4 py-2 text-xs font-semibold text-teal-800">
-          {upcomingCount} upcoming
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenImport}
+            className="app-button min-h-10 border border-stone-200 bg-white px-4 text-sm text-stone-700 hover:bg-stone-50"
+          >
+            Import files
+          </button>
+          <span className="rounded-full bg-teal-50 px-4 py-2 text-xs font-semibold text-teal-800">
+            {upcomingCount} upcoming
+          </span>
+        </div>
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -371,7 +397,11 @@ export default function ExamPlanner({
             }))
 
             return (
-            <article key={plan.id} className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
+            <article
+              key={plan.id}
+              data-exam-plan-id={plan.id}
+              className="rounded-3xl border border-stone-200 bg-stone-50 p-5"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">

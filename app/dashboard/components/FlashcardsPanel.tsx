@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Flashcard } from '../types'
 import EmptyState from './EmptyState'
 
@@ -8,6 +8,7 @@ type FlashcardsPanelProps = {
   flashcards: Flashcard[]
   syncing: boolean
   deletingId: string | null
+  focusedFlashcardId: string | null
   onOpenNotes: () => void
   onDelete: (id: string) => void
 }
@@ -51,6 +52,7 @@ export default function FlashcardsPanel({
   flashcards,
   syncing,
   deletingId,
+  focusedFlashcardId,
   onOpenNotes,
   onDelete,
 }: FlashcardsPanelProps) {
@@ -72,6 +74,19 @@ export default function FlashcardsPanel({
     [flashcards]
   )
 
+  useEffect(() => {
+    if (!focusedFlashcardId) return
+    const focusTimer = window.setTimeout(() => {
+      setOpenIds((prev) => (prev.includes(focusedFlashcardId) ? prev : [focusedFlashcardId, ...prev]))
+      document.querySelector(`[data-flashcard-id="${focusedFlashcardId}"]`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }, 0)
+
+    return () => window.clearTimeout(focusTimer)
+  }, [focusedFlashcardId])
+
   const toggleOpen = (id: string) => {
     setOpenIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [id, ...prev]))
   }
@@ -88,6 +103,7 @@ export default function FlashcardsPanel({
     return (
       <article
         key={card.id}
+        data-flashcard-id={card.id}
         className={`rounded-3xl border p-4 ${
           status === 'due'
             ? 'border-orange-200 bg-orange-50'

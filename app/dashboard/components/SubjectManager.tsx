@@ -25,7 +25,6 @@ type SubjectManagerProps = {
   onSubjectNameChange: (value: string) => void
   onCreateSubject: (event: FormEvent<HTMLFormElement>) => void
   onFilterSubject: (value: string) => void
-  onStartStudying: (subject: string) => void
   onDeleteManagedSubject: (id: string) => void
 }
 
@@ -41,7 +40,6 @@ export default function SubjectManager({
   onSubjectNameChange,
   onCreateSubject,
   onFilterSubject,
-  onStartStudying,
   onDeleteManagedSubject,
 }: SubjectManagerProps) {
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([])
@@ -112,12 +110,11 @@ export default function SubjectManager({
         ) : (
           subjects.map((subject) => {
             const selected = activeFilter === subject.name
-            const subjectFlashcardCount = flashcards.filter((card) => (card.subject || 'General') === subject.name).length
-            const studyMaterialCount = subject.noteCount + subjectFlashcardCount
 
             return (
               <article
                 key={subject.name}
+                data-subject-id={encodeURIComponent(subject.name)}
                 onClick={() => onFilterSubject(subject.name)}
                 className={`rounded-3xl border p-4 transition ${
                   selected ? 'border-teal-700 bg-teal-50' : 'cursor-pointer border-stone-200 bg-stone-50 hover:border-teal-200'
@@ -162,17 +159,6 @@ export default function SubjectManager({
                   >
                     {selected ? 'Unselect' : 'View material'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onStartStudying(subject.name)
-                    }}
-                    disabled={studyMaterialCount === 0}
-                    className="app-button min-h-10 bg-teal-900 px-3 text-xs text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Start studying
-                  </button>
                   {subject.managedId && (
                     <button
                       type="button"
@@ -205,14 +191,6 @@ export default function SubjectManager({
               {selectedNotes.length} notes | {selectedFlashcards.length} cards
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => onStartStudying(selectedSubject)}
-            disabled={selectedNotes.length + selectedFlashcards.length === 0}
-            className="app-button mt-4 min-h-10 bg-teal-900 px-4 text-sm text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Start studying
-          </button>
 
           <div className="mt-5 grid gap-4 xl:grid-cols-2">
             <div>

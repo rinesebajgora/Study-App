@@ -1,4 +1,4 @@
-import { ExamPlan, QA } from '../types'
+import { ExamPlan } from '../types'
 
 export type ProgressStats = {
   totalNotes: number
@@ -13,22 +13,25 @@ export type ProgressStats = {
   examReadiness: number
 }
 
+export type DashboardAnalytics = {
+  studyStreak: number
+  reviewedToday: number
+  weakestSubjects: Array<{ subject: string; detail: string }>
+  upcomingDeadlines: number
+}
+
 type DashboardOverviewProps = {
-  savedQA: QA[]
   examPlans: ExamPlan[]
-  subjects: string[]
   todayIso: string
-  pinnedCount: number
   progress: ProgressStats
+  analytics: DashboardAnalytics
 }
 
 export default function DashboardOverview({
-  savedQA,
   examPlans,
-  subjects,
   todayIso,
-  pinnedCount,
   progress,
+  analytics,
 }: DashboardOverviewProps) {
   const upcomingExams = examPlans
     .filter((plan) => plan.examDate >= todayIso)
@@ -36,16 +39,15 @@ export default function DashboardOverview({
   const upcomingExam = upcomingExams[0]
   const overdueCount = examPlans.filter((plan) => plan.examDate < todayIso).length
 
-  const workspacePillars = [
-    ['Subjects', `${subjects.length || 0} active`, 'Group notes and plans by class.'],
-    ['Exam plans', `${examPlans.length} saved`, 'Turn dates and goals into study routines.'],
-    ['Study notes', `${savedQA.length} saved`, 'Keep AI answers and manual notes together.'],
-    ['Revision', `${pinnedCount} pinned`, 'Mark important material for focused review.'],
-  ]
   const progressCards = [
     ['Revision progress', `${progress.revisionProgress}%`, `${progress.reviewedFlashcards}/${progress.totalFlashcards} flashcards reviewed`, progress.revisionProgress],
     ['Subject coverage', `${progress.subjectCoverage}%`, `${progress.totalSubjects} subjects with saved material`, progress.subjectCoverage],
     ['Exam readiness', `${progress.examReadiness}%`, `${progress.completedExams}/${examPlans.length} plans completed`, progress.examReadiness],
+  ]
+  const analyticsCards = [
+    ['Study streak', `${analytics.studyStreak} day${analytics.studyStreak === 1 ? '' : 's'}`, 'Consecutive days with reviewed flashcards.'],
+    ['Cards reviewed today', `${analytics.reviewedToday}`, 'Cards with review activity today.'],
+    ['Upcoming deadlines', `${analytics.upcomingDeadlines}`, 'Exam plans due in the next 14 days.'],
   ]
 
   return (
@@ -118,16 +120,49 @@ export default function DashboardOverview({
           ))}
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {workspacePillars.map(([label, value, description]) => (
+        <div className="mt-5 grid gap-3 lg:grid-cols-3">
+          {analyticsCards.map(([label, value, description]) => (
             <div key={label} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
                 {label}
               </p>
-              <p className="mt-3 text-lg font-semibold leading-6">{value}</p>
-              <p className="mt-2 text-sm leading-6 text-stone-600">{description}</p>
+              <p className="mt-3 text-2xl font-semibold leading-7">{value}</p>
+              <p className="mt-3 text-sm leading-6 text-stone-600">{description}</p>
             </div>
           ))}
+        </div>
+
+        <div className="mt-5 rounded-3xl border border-stone-200 bg-stone-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-800">
+                Weakest subjects
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-stone-600">
+                Subjects with the most unreviewed or low-review cards.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-stone-600">
+              Analytics
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {analytics.weakestSubjects.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-4 text-sm text-stone-600 md:col-span-3">
+                No weak subjects yet. Review flashcards to build analytics.
+              </div>
+            ) : (
+              analytics.weakestSubjects.map((item) => (
+                <div key={item.subject} className="rounded-2xl border border-stone-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">
+                    {item.subject}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">{item.detail}</p>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         <div className="mt-5 rounded-3xl border border-stone-200 bg-stone-50 p-4">
