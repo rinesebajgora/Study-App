@@ -73,7 +73,8 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: "system",
-          content: "You are an AI Study Assistant for students of any subject." 
+          content:
+            "You are an AI Study Assistant for students of any subject. Explain concepts in simple language, give short examples when helpful, and guide students step by step. Keep answers clear, friendly, and focused on learning instead of only giving final answers.",
         },
         {
           role: "user",
