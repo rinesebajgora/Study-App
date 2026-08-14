@@ -16,6 +16,9 @@ export type Flashcard = {
   back: string
   reviewCount: number
   reviewedAt?: string | null
+  nextReviewAt?: string | null
+  intervalDays: number
+  easeFactor: number
   createdAt?: string
 }
 
@@ -27,6 +30,9 @@ type FlashcardRow = {
   back: string
   review_count?: number | null
   reviewed_at?: string | null
+  next_review_at?: string | null
+  interval_days?: number | null
+  ease_factor?: number | null
   created_at?: string
 }
 
@@ -88,6 +94,9 @@ function mapFlashcard(row: FlashcardRow): Flashcard {
     back: row.back,
     reviewCount: row.review_count ?? 0,
     reviewedAt: row.reviewed_at,
+    nextReviewAt: row.next_review_at,
+    intervalDays: Number(row.interval_days ?? 0),
+    easeFactor: Number(row.ease_factor ?? 2.5),
     createdAt: row.created_at,
   }
 }
@@ -95,7 +104,7 @@ function mapFlashcard(row: FlashcardRow): Flashcard {
 export async function fetchFlashcards(userId: string) {
   const fullResult = await supabase
     .from('flashcards')
-    .select('id, question_id, subject, front, back, review_count, reviewed_at, created_at')
+    .select('id, question_id, subject, front, back, review_count, reviewed_at, next_review_at, interval_days, ease_factor, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
@@ -108,7 +117,7 @@ export async function fetchFlashcards(userId: string) {
 
   const fallbackResult = await supabase
     .from('flashcards')
-    .select('id, question_id, subject, front, back, created_at')
+    .select('id, question_id, subject, front, back, review_count, reviewed_at, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
@@ -135,7 +144,7 @@ export async function createFlashcards(params: {
         back: card.back,
       }))
     )
-    .select('id, question_id, subject, front, back, review_count, reviewed_at, created_at')
+    .select('id, question_id, subject, front, back, review_count, reviewed_at, next_review_at, interval_days, ease_factor, created_at')
 
   if (!fullResult.error) {
     return {
@@ -157,15 +166,43 @@ export async function createFlashcards(params: {
   }
 }
 
-export async function markFlashcardReviewed(card: Flashcard) {
+export type FlashcardRating = 'again' | 'hard' | 'good' | 'easy'
+
+export function calculateFlashcardSchedule(card: Flashcard, rating: FlashcardRating) {
+  const now = new Date()
+  const previousInterval = Math.max(0, card.intervalDays ?? 0)
+  const previousEase = Math.max(1.3, card.easeFactor ?? 2.5)
+  const daysByRating: Record<FlashcardRating, number> = {
+    again: 0,
+    hard: previousInterval < 1 ? 1 : Math.max(1, Math.round(previousInterval * 1.2)),
+    good: previousInterval < 1 ? 2 : Math.max(2, Math.round(previousInterval * previousEase)),
+    easy: previousInterval < 1 ? 4 : Math.max(4, Math.round(previousInterval * (previousEase + 0.5))),
+  }
+  const nextReview = new Date(now)
+  if (rating === 'again') nextReview.setMinutes(nextReview.getMinutes() + 10)
+  else nextReview.setDate(nextReview.getDate() + daysByRating[rating])
+  const easeChange: Record<FlashcardRating, number> = { again: -0.2, hard: -0.15, good: 0, easy: 0.15 }
+
+  return {
+    nextReviewAt: nextReview.toISOString(),
+    intervalDays: daysByRating[rating],
+    easeFactor: Math.min(3.5, Math.max(1.3, Number((previousEase + easeChange[rating]).toFixed(2)))),
+  }
+}
+
+export async function reviewFlashcard(card: Flashcard, rating: FlashcardRating) {
+  const schedule = calculateFlashcardSchedule(card, rating)
   const { data, error } = await supabase
     .from('flashcards')
     .update({
       review_count: card.reviewCount + 1,
       reviewed_at: new Date().toISOString(),
+      next_review_at: schedule.nextReviewAt,
+      interval_days: schedule.intervalDays,
+      ease_factor: schedule.easeFactor,
     })
     .eq('id', card.id)
-    .select('id, question_id, subject, front, back, review_count, reviewed_at, created_at')
+    .select('id, question_id, subject, front, back, review_count, reviewed_at, next_review_at, interval_days, ease_factor, created_at')
     .single()
 
   return {

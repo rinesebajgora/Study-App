@@ -14,6 +14,7 @@ const workspaceSections = [
   ['Exam planner', 'exam-planner'],
   ['Study notes library', 'study-notes'],
   ['Flashcards', 'flashcards'],
+  ['Quiz', 'quiz'],
   ['Import', 'import-material'],
 ]
 
@@ -111,7 +112,7 @@ export default function DashboardSidebar({
       </aside>
 
       <nav
-        className="fixed bottom-3 left-3 right-3 z-40 grid grid-cols-5 gap-2 rounded-3xl border border-stone-200 bg-white/95 p-2 shadow-xl xl:hidden"
+        className="fixed bottom-3 left-3 right-3 z-40 grid grid-cols-6 gap-2 rounded-3xl border border-stone-200 bg-white/95 p-2 shadow-xl xl:hidden"
         aria-label="Mobile workspace sections"
       >
         {workspaceSections.map(([label, id]) => (

@@ -21,14 +21,17 @@ import {
   fetchRevisionSummaries,
   fetchSubjects,
   Flashcard,
+  FlashcardRating,
   pinQuestion,
   QA,
   saveQuestion,
+  reviewFlashcard,
   Subject,
   unpinQuestion,
   updateQuestion,
   upsertRevisionSummary,
 } from '../lib/questions'
+import { createQuiz, fetchQuizAnalytics, QuizHistoryItem, saveQuizAttempt, TopicStat } from '../lib/quizzes'
 import AskAiPanel from './components/AskAiPanel'
 import DashboardOverview, { DashboardAnalytics, ProgressStats } from './components/DashboardOverview'
 import DashboardSidebar from './components/DashboardSidebar'
@@ -42,6 +45,7 @@ import Toast from './components/Toast'
 import OnboardingPanel from './components/OnboardingPanel'
 import ProfileSettings from './components/ProfileSettings'
 import ImportMaterial from './components/ImportMaterial'
+import QuizPanel, { GeneratedQuiz, QuizQuestion } from './components/QuizPanel'
 import { FilterMode, PromptSuggestion, StatusMessage } from './types'
 
 type DraftFlashcards = {
@@ -104,6 +108,22 @@ function getIsoDate(value?: string | null) {
   return value ? new Date(value).toISOString().slice(0, 10) : null
 }
 
+function isQuizSchemaMissing(error: { message?: string; code?: string } | null | undefined) {
+  return error?.code === 'PGRST205' || error?.message?.toLowerCase().includes("could not find the table 'public.quiz") || false
+}
+
+function isQuizAnswerCorrect(question: QuizQuestion, answer: string) {
+  const normalizedAnswer = answer.trim().toLowerCase()
+  const normalizedCorrect = question.answer.trim().toLowerCase()
+  if (question.type !== 'open') return normalizedAnswer === normalizedCorrect
+
+  const expectedWords = normalizedCorrect.match(/[\p{L}\p{N}]{4,}/gu) ?? []
+  if (expectedWords.length === 0) return normalizedAnswer === normalizedCorrect
+  const answerWords = new Set(normalizedAnswer.match(/[\p{L}\p{N}]{4,}/gu) ?? [])
+  const matches = expectedWords.filter((word) => answerWords.has(word)).length
+  return matches / expectedWords.length >= 0.6
+}
+
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -142,6 +162,7 @@ export default function DashboardPage() {
   const [generatingFlashcardsId, setGeneratingFlashcardsId] = useState<string | null>(null)
   const [savingFlashcardsId, setSavingFlashcardsId] = useState<string | null>(null)
   const [deletingFlashcardId, setDeletingFlashcardId] = useState<string | null>(null)
+  const [reviewingFlashcardId, setReviewingFlashcardId] = useState<string | null>(null)
 
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [subjectName, setSubjectName] = useState('')
@@ -160,6 +181,9 @@ export default function DashboardPage() {
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const [importingMaterial, setImportingMaterial] = useState(false)
   const [savingImport, setSavingImport] = useState(false)
+  const [generatingQuiz, setGeneratingQuiz] = useState(false)
+  const [quizHistory, setQuizHistory] = useState<QuizHistoryItem[]>([])
+  const [weakQuizTopics, setWeakQuizTopics] = useState<TopicStat[]>([])
   const [todayIso] = useState(() => new Date().toISOString().slice(0, 10))
 
   useEffect(() => {
@@ -179,19 +203,22 @@ export default function DashboardPage() {
       setSubjects([])
       setExamPlans([])
       setDraftExamPlan(null)
+      setQuizHistory([])
+      setWeakQuizTopics([])
       setFetchingSaved(false)
       return
     }
 
     const loadWorkspace = async () => {
       setFetchingSaved(true)
-      const [questions, pins, revisionSummaries, managedSubjects, cards, plans] = await Promise.all([
+      const [questions, pins, revisionSummaries, managedSubjects, cards, plans, quizAnalytics] = await Promise.all([
         fetchQuestions(user.id),
         fetchPinnedQuestionIds(user.id),
         fetchRevisionSummaries(user.id),
         fetchSubjects(user.id),
         fetchFlashcards(user.id),
         fetchExamPlans(user.id),
+        fetchQuizAnalytics(user.id),
       ])
 
       if (questions.error) {
@@ -213,6 +240,10 @@ export default function DashboardPage() {
         setStatus({ type: 'error', text: 'We could not load your flashcards right now.' })
       }
       if (!plans.error) setExamPlans(plans.data)
+      if (!quizAnalytics.error) {
+        setQuizHistory(quizAnalytics.history)
+        setWeakQuizTopics(quizAnalytics.topics)
+      }
 
       setFetchingSaved(false)
     }
@@ -911,6 +942,136 @@ Answer: ${qa.answer}`
     }
   }
 
+  const handleGenerateQuiz = async (params: { material: string; subject: string; title: string; sourceType: 'note' | 'subject' | 'material' }): Promise<GeneratedQuiz | null> => {
+    if (!user || generatingQuiz) return null
+
+    setGeneratingQuiz(true)
+    setStatus(null)
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session?.access_token) throw new Error('Your session expired. Please log in again.')
+
+      const response = await fetch('/api/quiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ material: params.material, subject: params.subject }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Quiz could not be generated.')
+
+      const questions: QuizQuestion[] = Array.isArray(payload.questions)
+        ? payload.questions
+            .map((item: QuizQuestion) => ({
+              id: String(item.id ?? '').trim(),
+              type: item.type,
+              question: String(item.question ?? '').trim(),
+              options: Array.isArray(item.options) ? item.options.map((option) => String(option).trim()).filter(Boolean) : undefined,
+              answer: String(item.answer ?? '').trim(),
+              explanation: String(item.explanation ?? '').trim(),
+              topic: String(item.topic ?? 'General').trim() || 'General',
+            }))
+            .filter((item: QuizQuestion) => item.id && item.question && item.answer && item.explanation)
+        : []
+
+      if (questions.length === 0) throw new Error('The quiz response was incomplete. Please try again.')
+
+      const { data: quiz, error: quizError } = await createQuiz({
+        userId: user.id,
+        subject: params.subject,
+        title: params.title,
+        sourceType: params.sourceType,
+        questions,
+      })
+      if (isQuizSchemaMissing(quizError)) {
+        throw new Error('Quiz tables are not set up in Supabase. Run the updated docs/supabase-schema.sql file, then refresh the app.')
+      }
+      if (quizError || !quiz) throw new Error(quizError?.message || 'Quiz could not be saved.')
+
+      setStatus({
+        type: 'success',
+        text: `${questions.length}-question quiz created from ${params.title}.${payload.fallback ? ' A basic quiz was used because AI output was unavailable.' : ''}`,
+      })
+      return { id: quiz.id, questions }
+    } catch (error) {
+      setStatus({ type: 'error', text: error instanceof Error ? error.message : 'Unexpected error' })
+      return null
+    } finally {
+      setGeneratingQuiz(false)
+    }
+  }
+
+  const handleSaveQuizAttempt = async (params: {
+    quizId: string
+    questions: QuizQuestion[]
+    answers: Record<string, string>
+    startedAt: number
+  }) => {
+    if (!user) return false
+
+    const answers = params.questions.map((question) => {
+      const selectedAnswer = params.answers[question.id]?.trim() || ''
+      return {
+        questionId: question.id,
+        questionText: question.question,
+        questionType: question.type,
+        topic: question.topic || 'General',
+        selectedAnswer,
+        correctAnswer: question.answer,
+        isCorrect: isQuizAnswerCorrect(question, selectedAnswer),
+      }
+    })
+    const correctAnswers = answers.filter((answer) => answer.isCorrect).length
+    const totalQuestions = answers.length
+    const score = totalQuestions === 0 ? 0 : Math.round((correctAnswers / totalQuestions) * 100)
+    const durationSeconds = Math.max(0, Math.round((Date.now() - params.startedAt) / 1000))
+
+    const { data, error } = await saveQuizAttempt({
+      userId: user.id,
+      quizId: params.quizId,
+      score,
+      correctAnswers,
+      totalQuestions,
+      durationSeconds,
+      answers,
+    })
+    if (isQuizSchemaMissing(error)) {
+      setStatus({ type: 'error', text: 'Quiz tables are not set up in Supabase. Run the updated docs/supabase-schema.sql file, then refresh the app.' })
+      return false
+    }
+    if (error || !data) {
+      setStatus({ type: 'error', text: error?.message || 'Quiz result could not be saved.' })
+      return false
+    }
+
+    setQuizHistory((prev) => [
+      {
+        id: data.id,
+        subject: 'General',
+        title: 'Quiz',
+        score,
+        correctAnswers,
+        totalQuestions,
+        durationSeconds,
+        completedAt: data.completed_at,
+      },
+      ...prev,
+    ])
+    const analytics = await fetchQuizAnalytics(user.id)
+    if (!analytics.error) {
+      setQuizHistory(analytics.history)
+      setWeakQuizTopics(analytics.topics)
+    }
+    setStatus({ type: 'success', text: `Quiz result saved: ${score}% in ${Math.max(1, Math.round(durationSeconds / 60))} minute(s).` })
+    return true
+  }
+
   const handleImportMaterial = async () => {
     if (!user || importingMaterial) return
 
@@ -1045,6 +1206,28 @@ Answer: ${qa.answer}`
     }
 
     setDeletingFlashcardId(null)
+  }
+
+  const handleReviewFlashcard = async (card: Flashcard, rating: FlashcardRating) => {
+    if (reviewingFlashcardId) return
+
+    setReviewingFlashcardId(card.id)
+    const { data, error } = await reviewFlashcard(card, rating)
+
+    if (error || !data) {
+      const details = error?.message?.toLowerCase() ?? ''
+      setStatus({
+        type: 'error',
+        text: details.includes('next_review_at') || details.includes('interval_days') || details.includes('ease_factor')
+          ? 'Spaced repetition columns are not set up in Supabase. Run the updated docs/supabase-schema.sql file, then refresh the app.'
+          : error?.message || 'Flashcard review could not be saved.',
+      })
+    } else {
+      setFlashcards((prev) => prev.map((item) => (item.id === data.id ? data : item)))
+      setStatus({ type: 'success', text: `Flashcard scheduled again after: ${rating}.` })
+    }
+
+    setReviewingFlashcardId(null)
   }
 
   const togglePinned = async (id: string) => {
@@ -1342,7 +1525,7 @@ Answer: ${qa.answer}`
                 <section className="surface-panel rounded-3xl border border-stone-200/80 bg-white/96 p-5 text-center sm:p-6">
                   <p className="text-sm font-semibold text-slate-800">Choose a workspace section</p>
                   <p className="mt-2 text-sm leading-6 text-stone-600">
-                    Open Subjects, Exam planner, Study notes library, Flashcards, or Import from the navigation.
+                    Open Subjects, Exam planner, Study notes library, Flashcards, Quiz, or Import from the navigation.
                   </p>
                 </section>
               )}
@@ -1516,7 +1699,9 @@ Answer: ${qa.answer}`
                   syncing={fetchingSaved}
                   deletingId={deletingFlashcardId}
                   focusedFlashcardId={focusedFlashcardId}
+                  reviewingId={reviewingFlashcardId}
                   onOpenNotes={() => setActiveSection('study-notes')}
+                  onRate={handleReviewFlashcard}
                   onDelete={(id) => {
                     setDeleteTarget({
                       type: 'flashcard',
@@ -1525,6 +1710,20 @@ Answer: ${qa.answer}`
                       description: 'This removes the flashcard from your review deck. This cannot be undone.',
                     })
                   }}
+                />
+              </div>
+              )}
+
+              {activeSection === 'quiz' && (
+              <div id="quiz" className="scroll-mt-24">
+                <QuizPanel
+                  notes={savedQA}
+                  subjects={allSubjects}
+                  generating={generatingQuiz}
+                  history={quizHistory}
+                  weakTopics={weakQuizTopics}
+                  onGenerate={handleGenerateQuiz}
+                  onSubmitQuiz={handleSaveQuizAttempt}
                 />
               </div>
               )}

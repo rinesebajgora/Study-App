@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Flashcard } from '../types'
+import { calculateFlashcardSchedule, FlashcardRating } from '../../lib/questions'
 import EmptyState from './EmptyState'
 
 type FlashcardsPanelProps = {
@@ -9,7 +10,9 @@ type FlashcardsPanelProps = {
   syncing: boolean
   deletingId: string | null
   focusedFlashcardId: string | null
+  reviewingId: string | null
   onOpenNotes: () => void
+  onRate: (card: Flashcard, rating: FlashcardRating) => void
   onDelete: (id: string) => void
 }
 
@@ -28,6 +31,7 @@ function addDays(date: Date, days: number) {
 }
 
 function getNextReviewDate(card: Flashcard) {
+  if (card.nextReviewAt) return new Date(card.nextReviewAt)
   if (!card.reviewedAt) return startOfToday()
 
   const reviewedDate = new Date(card.reviewedAt)
@@ -53,11 +57,12 @@ export default function FlashcardsPanel({
   syncing,
   deletingId,
   focusedFlashcardId,
+  reviewingId,
   onOpenNotes,
+  onRate,
   onDelete,
 }: FlashcardsPanelProps) {
   const [openIds, setOpenIds] = useState<string[]>([])
-  const today = startOfToday()
 
   const grouped = useMemo(
     () =>
@@ -98,7 +103,7 @@ export default function FlashcardsPanel({
     const open = openIds.includes(card.id)
     const status = getCardStatus(card)
     const nextReviewDate = getNextReviewDate(card)
-    const nextReviewLabel = nextReviewDate <= today ? 'Due today' : `Due ${nextReviewDate.toLocaleDateString()}`
+    const nextReviewLabel = nextReviewDate <= new Date() ? 'Due now' : `Due ${nextReviewDate.toLocaleDateString()}`
 
     return (
       <article
@@ -163,6 +168,33 @@ export default function FlashcardsPanel({
           >
             {open ? 'Hide answer' : 'Show answer'}
           </button>
+          {open && (
+            <>
+              {(['again', 'hard', 'good', 'easy'] as FlashcardRating[]).map((rating) => {
+                const schedule = calculateFlashcardSchedule(card, rating)
+                const scheduleLabel = rating === 'again' ? '10 min' : `${schedule.intervalDays} day${schedule.intervalDays === 1 ? '' : 's'}`
+                const tone = rating === 'again'
+                  ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                  : rating === 'hard'
+                    ? 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'
+                    : rating === 'good'
+                      ? 'border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100'
+                      : 'border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100'
+
+                return (
+                  <button
+                    key={rating}
+                    type="button"
+                    onClick={() => onRate(card, rating)}
+                    disabled={reviewingId === card.id}
+                    className={`app-button min-h-10 border px-3 text-xs capitalize disabled:cursor-not-allowed disabled:opacity-60 ${tone}`}
+                  >
+                    {reviewingId === card.id ? 'Saving...' : `${rating} · ${scheduleLabel}`}
+                  </button>
+                )
+              })}
+            </>
+          )}
         </div>
       </article>
     )
@@ -218,26 +250,17 @@ export default function FlashcardsPanel({
             <div className="rounded-3xl border border-orange-200 bg-orange-50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-700">Review today</p>
-                  <h3 className="mt-2 text-lg font-semibold text-slate-900">
-                    {dueTodayCards.length} cards due
-                  </h3>
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-orange-800">Due today</h3>
+                  <p className="mt-1 text-xs leading-5 text-orange-800">Reveal the answer, then rate how difficult it felt.</p>
                 </div>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-orange-700">
-                  Spaced repetition
-                </span>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-orange-700">{dueTodayCards.length} cards</span>
               </div>
               {dueTodayCards.length === 0 ? (
-                <p className="mt-3 text-sm leading-6 text-orange-800">
-                  Nothing is due right now. Keep going with any subject below or come back tomorrow.
-                </p>
+                <p className="mt-4 rounded-2xl bg-white p-3 text-sm text-stone-600">Nothing is due right now. Your next review dates will appear here.</p>
               ) : (
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {dueTodayCards.slice(0, 4).map(renderCard)}
-                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">{dueTodayCards.map(renderCard)}</div>
               )}
             </div>
-
             {grouped.map((group) => (
               <div key={group.subject}>
                 <div className="mb-3 flex items-center justify-between gap-3">

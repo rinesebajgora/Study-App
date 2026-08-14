@@ -39,9 +39,6 @@ export default function GlobalSearch({
             Search notes, flashcards, subjects, and exam plans from one place.
           </p>
         </div>
-        <span className="rounded-full bg-teal-50 px-4 py-2 text-xs font-semibold text-teal-800">
-          Sprint 7
-        </span>
       </div>
 
       <label className="mt-5 block">

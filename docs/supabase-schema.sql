@@ -47,6 +47,9 @@ create table if not exists public.flashcards (
   back text not null,
   review_count integer not null default 0,
   reviewed_at timestamptz,
+  next_review_at timestamptz,
+  interval_days numeric not null default 0,
+  ease_factor numeric not null default 2.5,
   created_at timestamptz not null default now()
 );
 
@@ -55,6 +58,15 @@ add column if not exists review_count integer not null default 0;
 
 alter table public.flashcards
 add column if not exists reviewed_at timestamptz;
+
+alter table public.flashcards
+add column if not exists next_review_at timestamptz;
+
+alter table public.flashcards
+add column if not exists interval_days numeric not null default 0;
+
+alter table public.flashcards
+add column if not exists ease_factor numeric not null default 2.5;
 
 create table if not exists public.exam_plans (
   id uuid primary key default gen_random_uuid(),
@@ -65,6 +77,41 @@ create table if not exists public.exam_plans (
   plan text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.quizzes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  subject text not null default 'General',
+  title text not null,
+  source_type text not null check (source_type in ('note', 'subject', 'material')),
+  questions jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.quiz_attempts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  quiz_id uuid not null references public.quizzes(id) on delete cascade,
+  score integer not null check (score between 0 and 100),
+  correct_answers integer not null check (correct_answers >= 0),
+  total_questions integer not null check (total_questions > 0),
+  duration_seconds integer not null default 0 check (duration_seconds >= 0),
+  completed_at timestamptz not null default now()
+);
+
+create table if not exists public.quiz_attempt_answers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  quiz_attempt_id uuid not null references public.quiz_attempts(id) on delete cascade,
+  question_id text not null,
+  question_text text not null,
+  question_type text not null check (question_type in ('multiple_choice', 'true_false', 'open')),
+  topic text not null default 'General',
+  selected_answer text not null,
+  correct_answer text not null,
+  is_correct boolean not null,
+  created_at timestamptz not null default now()
 );
 
 create or replace function public.set_updated_at()
@@ -93,6 +140,9 @@ alter table public.pinned_questions enable row level security;
 alter table public.revision_summaries enable row level security;
 alter table public.flashcards enable row level security;
 alter table public.exam_plans enable row level security;
+alter table public.quizzes enable row level security;
+alter table public.quiz_attempts enable row level security;
+alter table public.quiz_attempt_answers enable row level security;
 
 drop policy if exists "Users can read their subjects" on public.subjects;
 create policy "Users can read their subjects"
@@ -214,6 +264,23 @@ create policy "Users can delete their exam plans"
 on public.exam_plans for delete
 using (auth.uid() = user_id);
 
+drop policy if exists "Users can read their quizzes" on public.quizzes;
+create policy "Users can read their quizzes" on public.quizzes for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their quizzes" on public.quizzes;
+create policy "Users can insert their quizzes" on public.quizzes for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their quizzes" on public.quizzes;
+create policy "Users can delete their quizzes" on public.quizzes for delete using (auth.uid() = user_id);
+
+drop policy if exists "Users can read their quiz attempts" on public.quiz_attempts;
+create policy "Users can read their quiz attempts" on public.quiz_attempts for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their quiz attempts" on public.quiz_attempts;
+create policy "Users can insert their quiz attempts" on public.quiz_attempts for insert with check (auth.uid() = user_id);
+
+drop policy if exists "Users can read their quiz answers" on public.quiz_attempt_answers;
+create policy "Users can read their quiz answers" on public.quiz_attempt_answers for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their quiz answers" on public.quiz_attempt_answers;
+create policy "Users can insert their quiz answers" on public.quiz_attempt_answers for insert with check (auth.uid() = user_id);
+
 create index if not exists questions_user_created_idx on public.questions(user_id, created_at desc);
 create index if not exists subjects_user_name_idx on public.subjects(user_id, name);
 create index if not exists pinned_questions_user_created_idx on public.pinned_questions(user_id, created_at desc);
@@ -221,4 +288,8 @@ create index if not exists revision_summaries_user_question_idx on public.revisi
 create index if not exists flashcards_user_created_idx on public.flashcards(user_id, created_at desc);
 create index if not exists flashcards_user_question_idx on public.flashcards(user_id, question_id);
 create index if not exists flashcards_user_subject_idx on public.flashcards(user_id, subject);
+create index if not exists flashcards_user_next_review_idx on public.flashcards(user_id, next_review_at);
 create index if not exists exam_plans_user_exam_date_idx on public.exam_plans(user_id, exam_date);
+create index if not exists quizzes_user_created_idx on public.quizzes(user_id, created_at desc);
+create index if not exists quiz_attempts_user_completed_idx on public.quiz_attempts(user_id, completed_at desc);
+create index if not exists quiz_answers_user_topic_idx on public.quiz_attempt_answers(user_id, topic);
