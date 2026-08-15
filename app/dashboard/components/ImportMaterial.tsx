@@ -82,7 +82,7 @@ export default function ImportMaterial({
           .replace(/\s+/g, ' ')
           .trim()
 
-        if (pageText) pages.push(pageText)
+        if (pageText) pages.push(`[[SOURCE: ${file.name} | PAGE: ${pageNumber}]]\n${pageText}`)
       }
 
       return pages.join('\n\n').trim()
@@ -90,13 +90,13 @@ export default function ImportMaterial({
 
     if (extension === 'docx') {
       const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
-      return result.value.trim()
+      return `[[SOURCE: ${file.name}]]\n${result.value.trim()}`
     }
 
     const canReadAsText = file.type.startsWith('text/') || readableFileTypes.has(extension)
     if (!canReadAsText) return null
 
-    return (await file.text()).trim()
+    return `[[SOURCE: ${file.name}]]\n${(await file.text()).trim()}`
   }
 
   const importFiles = async (files: File[]) => {
@@ -114,7 +114,7 @@ export default function ImportMaterial({
           continue
         }
 
-        importedSections.push(`Source: ${file.name}\n\n${text}`)
+        importedSections.push(text)
       } catch {
         skippedFiles.push(file.name)
       }
@@ -175,7 +175,7 @@ export default function ImportMaterial({
           <div>
             <p className="text-sm font-semibold text-slate-800">File import</p>
             <p className="mt-2 text-sm leading-6 text-stone-600">
-              Drop files here or choose documents. The file text stays hidden, but it will be used when generating the import preview.
+              Drop files here or choose documents. When saved, the text is split into searchable sections so AI answers can cite the document and PDF page.
             </p>
             {fileMessage && <p className="mt-2 text-sm text-teal-800">{fileMessage}</p>}
           </div>

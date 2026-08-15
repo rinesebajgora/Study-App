@@ -18,6 +18,12 @@ export type TopicStat = {
   incorrect: number
 }
 
+export type QuizAnalytics = {
+  history: QuizHistoryItem[]
+  topics: TopicStat[]
+  error: { message?: string; code?: string } | null
+}
+
 type QuizRow = { id: string }
 type AttemptRow = {
   id: string
@@ -107,8 +113,7 @@ export async function fetchQuizAnalytics(userId: string) {
       .from('quiz_attempts')
       .select('id, score, correct_answers, total_questions, duration_seconds, completed_at, quizzes(subject, title)')
       .eq('user_id', userId)
-      .order('completed_at', { ascending: false })
-      .limit(10),
+      .order('completed_at', { ascending: false }),
     supabase
       .from('quiz_attempt_answers')
       .select('topic, is_correct')
@@ -140,7 +145,11 @@ export async function fetchQuizAnalytics(userId: string) {
 
   return {
     history,
-    topics: [...topicMap.values()].filter((item) => item.incorrect > 0).sort((a, b) => b.incorrect - a.incorrect || b.total - a.total).slice(0, 5),
+    topics: [...topicMap.values()].sort((a, b) => {
+      const aScore = (a.total - a.incorrect) / a.total
+      const bScore = (b.total - b.incorrect) / b.total
+      return aScore - bScore || b.total - a.total || a.topic.localeCompare(b.topic)
+    }),
     error: historyResult.error || answersResult.error,
-  }
+  } satisfies QuizAnalytics
 }

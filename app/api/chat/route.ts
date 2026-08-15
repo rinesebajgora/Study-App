@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { createClient } from "@supabase/supabase-js";
 
+type DocumentChunk = {
+  content: string;
+  source_name: string;
+  page_number: number | null;
+};
+
+function findRelevantChunks(message: string, chunks: DocumentChunk[]) {
+  const ignored = new Set(["about", "after", "again", "also", "answer", "could", "explain", "from", "have", "into", "please", "should", "study", "that", "the", "these", "this", "what", "with", "would", "your"]);
+  const terms = [...new Set(message.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu)?.filter((term) => !ignored.has(term)) ?? [])];
+  if (terms.length === 0) return [];
+
+  return chunks
+    .map((chunk) => {
+      const text = chunk.content.toLowerCase();
+      const score = terms.reduce((total, term) => total + (text.includes(term) ? 1 : 0), 0);
+      return { ...chunk, score };
+    })
+    .filter((chunk) => chunk.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authorization = request.headers.get("authorization");
@@ -57,6 +79,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { data: documentRows } = await supabase
+      .from("document_chunks")
+      .select("content, source_name, page_number")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    const relevantChunks = findRelevantChunks(trimmedMessage, (documentRows ?? []) as DocumentChunk[]);
+    const documentContext = relevantChunks.length === 0
+      ? "No relevant student document excerpts were found."
+      : relevantChunks.map((chunk, index) => `[${index + 1}] ${chunk.source_name}${chunk.page_number ? `, page ${chunk.page_number}` : ""}\n${chunk.content}`).join("\n\n");
+
     if (!process.env.GROQ_API_KEY) {
       return NextResponse.json(
         { error: "The AI service is not configured yet. Add GROQ_API_KEY to your environment." },
@@ -74,11 +107,11 @@ export async function POST(request: NextRequest) {
         {
           role: "system",
           content:
-            "You are an AI Study Assistant for students of any subject. Explain concepts in simple language, give short examples when helpful, and guide students step by step. Keep answers clear, friendly, and focused on learning instead of only giving final answers.",
+            "You are an AI Study Assistant for students of any subject. Explain concepts in simple language, give short examples when helpful, and guide students step by step. Keep answers clear, friendly, and focused on learning instead of only giving final answers. When document excerpts are provided, use them as the primary source. Do not invent facts that are claimed to come from a document. Refer to excerpt numbers such as [1] when you rely on them.",
         },
         {
           role: "user",
-          content: trimmedMessage
+          content: `Student question:\n${trimmedMessage}\n\nRelevant excerpts from the student's documents:\n${documentContext}`
         }
       ],
       max_tokens: 1000
@@ -93,7 +126,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ reply });
+    const sources = [...new Set(relevantChunks.map((chunk) => `${chunk.source_name}${chunk.page_number ? `, page ${chunk.page_number}` : ""}`))];
+    const replyWithSources = sources.length > 0
+      ? `${reply}\n\nSources:\n${sources.map((source) => `- ${source}`).join("\n")}`
+      : reply;
+
+    return NextResponse.json({ reply: replyWithSources, sources });
 
   } catch (error) {
     console.error("Groq API error:", error);

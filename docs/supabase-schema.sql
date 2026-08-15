@@ -114,6 +114,17 @@ create table if not exists public.quiz_attempt_answers (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.document_chunks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  subject text not null default 'General',
+  source_name text not null,
+  page_number integer,
+  chunk_index integer not null,
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -143,6 +154,7 @@ alter table public.exam_plans enable row level security;
 alter table public.quizzes enable row level security;
 alter table public.quiz_attempts enable row level security;
 alter table public.quiz_attempt_answers enable row level security;
+alter table public.document_chunks enable row level security;
 
 drop policy if exists "Users can read their subjects" on public.subjects;
 create policy "Users can read their subjects"
@@ -281,6 +293,13 @@ create policy "Users can read their quiz answers" on public.quiz_attempt_answers
 drop policy if exists "Users can insert their quiz answers" on public.quiz_attempt_answers;
 create policy "Users can insert their quiz answers" on public.quiz_attempt_answers for insert with check (auth.uid() = user_id);
 
+drop policy if exists "Users can read their document chunks" on public.document_chunks;
+create policy "Users can read their document chunks" on public.document_chunks for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their document chunks" on public.document_chunks;
+create policy "Users can insert their document chunks" on public.document_chunks for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their document chunks" on public.document_chunks;
+create policy "Users can delete their document chunks" on public.document_chunks for delete using (auth.uid() = user_id);
+
 create index if not exists questions_user_created_idx on public.questions(user_id, created_at desc);
 create index if not exists subjects_user_name_idx on public.subjects(user_id, name);
 create index if not exists pinned_questions_user_created_idx on public.pinned_questions(user_id, created_at desc);
@@ -293,3 +312,4 @@ create index if not exists exam_plans_user_exam_date_idx on public.exam_plans(us
 create index if not exists quizzes_user_created_idx on public.quizzes(user_id, created_at desc);
 create index if not exists quiz_attempts_user_completed_idx on public.quiz_attempts(user_id, completed_at desc);
 create index if not exists quiz_answers_user_topic_idx on public.quiz_attempt_answers(user_id, topic);
+create index if not exists document_chunks_user_subject_idx on public.document_chunks(user_id, subject);

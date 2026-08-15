@@ -32,6 +32,8 @@ import {
   upsertRevisionSummary,
 } from '../lib/questions'
 import { createQuiz, fetchQuizAnalytics, QuizHistoryItem, saveQuizAttempt, TopicStat } from '../lib/quizzes'
+import { buildSubjectKnowledgeProfiles, buildTopicKnowledgeProfiles } from '../lib/knowledge'
+import { buildDailyRecommendation } from '../lib/daily-recommendations'
 import AskAiPanel from './components/AskAiPanel'
 import DashboardOverview, { DashboardAnalytics, ProgressStats } from './components/DashboardOverview'
 import DashboardSidebar from './components/DashboardSidebar'
@@ -311,11 +313,13 @@ export default function DashboardPage() {
     const names = [
       ...subjects.map((item) => item.name),
       ...savedQA.map((qa) => qa.subject || 'General'),
+      ...flashcards.map((card) => card.subject || 'General'),
       ...examPlans.map((plan) => plan.subject || 'General'),
+      ...quizHistory.map((attempt) => attempt.subject || 'General'),
     ]
 
     return Array.from(new Set(names.filter(Boolean))).sort((a, b) => a.localeCompare(b))
-  }, [examPlans, savedQA, subjects])
+  }, [examPlans, flashcards, quizHistory, savedQA, subjects])
 
   const filteredQA = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
@@ -391,27 +395,15 @@ export default function DashboardPage() {
     dayCursor -= 1
   }
   const reviewedToday = flashcards.filter((card) => getIsoDate(card.reviewedAt) === todayIso).length
-  const weakestSubjects = allSubjects
-    .map((name) => {
-      const subjectCards = flashcards.filter((card) => (card.subject || 'General') === name)
-      const unreviewed = subjectCards.filter((card) => card.reviewCount === 0).length
-      const averageReviews =
-        subjectCards.length === 0
-          ? 0
-          : subjectCards.reduce((sum, card) => sum + card.reviewCount, 0) / subjectCards.length
-
-      return {
-        subject: name,
-        score: unreviewed * 2 + Math.max(0, 3 - averageReviews),
-        detail:
-          subjectCards.length === 0
-            ? 'No flashcards created yet.'
-            : `${unreviewed}/${subjectCards.length} cards unreviewed, ${averageReviews.toFixed(1)} avg reviews.`,
-      }
-    })
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || a.subject.localeCompare(b.subject))
-    .slice(0, 3)
+  const knowledgeProfiles = useMemo(
+    () => buildSubjectKnowledgeProfiles(allSubjects, flashcards, quizHistory),
+    [allSubjects, flashcards, quizHistory]
+  )
+  const topicProfiles = useMemo(() => buildTopicKnowledgeProfiles(weakQuizTopics), [weakQuizTopics])
+  const dailyRecommendation = useMemo(
+    () => buildDailyRecommendation({ subjectProfiles: knowledgeProfiles, topicProfiles, flashcards, examPlans, todayIso }),
+    [examPlans, flashcards, knowledgeProfiles, todayIso, topicProfiles]
+  )
   const todayDay = toDayNumber(todayIso)
   const upcomingDeadlines = examPlans.filter((plan) => {
     const examDay = toDayNumber(plan.examDate)
@@ -420,7 +412,9 @@ export default function DashboardPage() {
   const dashboardAnalytics: DashboardAnalytics = {
     studyStreak,
     reviewedToday,
-    weakestSubjects: weakestSubjects.map(({ subject, detail }) => ({ subject, detail })),
+    knowledgeProfiles,
+    topicProfiles,
+    dailyRecommendation,
     upcomingDeadlines,
   }
   const hasOnboardingWork = allSubjects.length === 0 || savedQA.length === 0 || flashcards.length === 0
@@ -1176,6 +1170,24 @@ Answer: ${qa.answer}`
       }
       if (cardsResult.error) throw new Error(cardsResult.error.message)
 
+      const materialForRag = [
+        importMaterial.trim() ? `[[SOURCE: Pasted material]]\n${importMaterial.trim()}` : '',
+        importFileMaterial.trim(),
+      ].filter(Boolean).join('\n\n')
+      const { data: { session } } = await supabase.auth.getSession()
+      let documentIndexError = ''
+      if (session?.access_token && materialForRag) {
+        const indexResult = await fetch('/api/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ material: materialForRag, subject: normalizedSubject }),
+        })
+        if (!indexResult.ok) {
+          const payload = await indexResult.json()
+          documentIndexError = payload.error || 'Unknown error'
+        }
+      }
+
       setFlashcards((prev) => [...cardsResult.data, ...prev])
       setImportMaterial('')
       setImportFileMaterial('')
@@ -1184,7 +1196,9 @@ Answer: ${qa.answer}`
       setSelectedQuestionId(savedNote.id)
       setSubjectFilter(normalizedSubject)
       setActiveSection('study-notes')
-      setStatus({ type: 'success', text: 'Imported note and flashcards saved.' })
+      setStatus(documentIndexError
+        ? { type: 'error', text: `Import saved, but document search was not enabled: ${documentIndexError}` }
+        : { type: 'success', text: 'Imported note, flashcards, and searchable document saved.' })
     } catch (err) {
       setStatus({ type: 'error', text: err instanceof Error ? err.message : 'Unexpected error' })
     } finally {
