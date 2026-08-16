@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Flashcard, QA } from '../types'
 import EmptyState from './EmptyState'
 
@@ -44,6 +44,7 @@ export default function SubjectManager({
 }: SubjectManagerProps) {
   const [openNoteIds, setOpenNoteIds] = useState<string[]>([])
   const [openCardIds, setOpenCardIds] = useState<string[]>([])
+  const materialRef = useRef<HTMLDivElement>(null)
   const selectedSubject = activeFilter === 'All' ? null : activeFilter
   const selectedNotes = selectedSubject
     ? notes.filter((note) => (note.subject || 'General') === selectedSubject)
@@ -57,6 +58,15 @@ export default function SubjectManager({
   const toggleOpenCard = (id: string) => {
     setOpenCardIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [id, ...prev]))
   }
+
+  useEffect(() => {
+    if (!selectedSubject || syncing) return
+    const scrollTimer = window.setTimeout(() => {
+      materialRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+
+    return () => window.clearTimeout(scrollTimer)
+  }, [selectedSubject, syncing])
 
   return (
     <section className="surface-panel rounded-3xl border border-stone-200/80 bg-white/96 p-5 sm:p-6">
@@ -179,7 +189,7 @@ export default function SubjectManager({
       </div>
 
       {selectedSubject && !syncing && (
-        <div className="mt-6 rounded-3xl border border-stone-200 bg-stone-50 p-4">
+        <div ref={materialRef} tabIndex={-1} className="mt-6 scroll-mt-24 rounded-3xl border border-stone-200 bg-stone-50 p-4 outline-none">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">

@@ -168,9 +168,17 @@ export default function FlashcardsPanel({
           >
             {open ? 'Hide answer' : 'Show answer'}
           </button>
+          <button
+            type="button"
+            onClick={() => onRate(card, 'good')}
+            disabled={reviewingId === card.id}
+            className="app-button min-h-10 border border-teal-200 bg-teal-50 px-3 text-xs text-teal-800 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {reviewingId === card.id ? 'Saving...' : 'Reviewed'}
+          </button>
           {open && (
             <>
-              {(['again', 'hard', 'good', 'easy'] as FlashcardRating[]).map((rating) => {
+              {([] as FlashcardRating[]).map((rating) => {
                 const schedule = calculateFlashcardSchedule(card, rating)
                 const scheduleLabel = rating === 'again' ? '10 min' : `${schedule.intervalDays} day${schedule.intervalDays === 1 ? '' : 's'}`
                 const tone = rating === 'again'

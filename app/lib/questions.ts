@@ -22,6 +22,12 @@ export type Flashcard = {
   createdAt?: string
 }
 
+export type FlashcardReviewEvent = {
+  id: string
+  reviewedAt: string
+  rating: FlashcardRating
+}
+
 type FlashcardRow = {
   id: string
   question_id: string | null
@@ -205,8 +211,33 @@ export async function reviewFlashcard(card: Flashcard, rating: FlashcardRating) 
     .select('id, question_id, subject, front, back, review_count, reviewed_at, next_review_at, interval_days, ease_factor, created_at')
     .single()
 
+  if (error || !data) return { data: null, error }
+
+  // The review itself remains successful even when this optional analytics log
+  // is not yet present in an older Supabase project.
+  await supabase.from('flashcard_review_events').insert({
+    user_id: (await supabase.auth.getUser()).data.user?.id,
+    flashcard_id: card.id,
+    rating,
+  })
+
+  return { data: mapFlashcard(data as FlashcardRow), error: null }
+}
+
+export async function fetchFlashcardReviewEvents(userId: string) {
+  const { data, error } = await supabase
+    .from('flashcard_review_events')
+    .select('id, reviewed_at, rating')
+    .eq('user_id', userId)
+    .order('reviewed_at', { ascending: false })
+    .limit(3650)
+
   return {
-    data: data ? mapFlashcard(data as FlashcardRow) : null,
+    data: ((data as Array<{ id: string; reviewed_at: string; rating: FlashcardRating }> | null) ?? []).map((event) => ({
+      id: event.id,
+      reviewedAt: event.reviewed_at,
+      rating: event.rating,
+    })),
     error,
   }
 }

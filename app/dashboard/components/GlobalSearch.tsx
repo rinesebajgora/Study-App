@@ -32,16 +32,7 @@ export default function GlobalSearch({
 
   return (
     <section className="surface-panel rounded-3xl border border-stone-200/80 bg-white/96 p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">Global search</h2>
-          <p className="mt-2 text-sm leading-6 text-stone-600">
-            Search notes, flashcards, subjects, and exam plans from one place.
-          </p>
-        </div>
-      </div>
-
-      <label className="mt-5 block">
+      <label className="block">
         <span className="mb-2 block text-sm font-medium text-stone-700">Search workspace</span>
         <input
           type="search"

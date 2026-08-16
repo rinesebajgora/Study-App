@@ -1,4 +1,6 @@
 import { ExamPlan } from '../types'
+import type { GamificationProfile } from '../../lib/gamification'
+import GamificationPanel from './GamificationPanel'
 
 export type ProgressStats = {
   totalNotes: number
@@ -35,6 +37,7 @@ export type DashboardAnalytics = {
     examLabel: string | null
   }
   upcomingDeadlines: number
+  gamification: GamificationProfile
 }
 
 type DashboardOverviewProps = {
@@ -53,7 +56,6 @@ export default function DashboardOverview({
   const upcomingExams = examPlans
     .filter((plan) => plan.examDate >= todayIso)
     .sort((a, b) => a.examDate.localeCompare(b.examDate))
-  const upcomingExam = upcomingExams[0]
   const overdueCount = examPlans.filter((plan) => plan.examDate < todayIso).length
 
   const progressCards = [
@@ -70,36 +72,6 @@ export default function DashboardOverview({
 
   return (
     <>
-      <section className="glass-panel rounded-3xl border border-stone-200/80 bg-white/82 px-5 py-6 sm:px-7">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-end">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-teal-800">
-              StudyMate AI workspace
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold sm:text-4xl">
-              Plan exams, save notes, and revise from one student workspace.
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-stone-600">
-              AI is here for explanations, summaries, and study plans, while the product stays focused on organization, revision, and progress.
-            </p>
-          </div>
-
-          <div className="rounded-3xl border border-teal-100 bg-teal-50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">
-              Next priority
-            </p>
-            <h3 className="mt-3 text-lg font-semibold">
-              {upcomingExam ? `${upcomingExam.subject} exam` : 'Create an exam plan'}
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-stone-600">
-              {upcomingExam
-                ? `Scheduled for ${upcomingExam.examDate}. Keep your revision tasks close to your saved notes.`
-                : 'Add an exam date and goal so StudyMate AI can build the first realistic study routine.'}
-            </p>
-          </div>
-        </div>
-      </section>
-
       <section className="surface-panel rounded-3xl border border-stone-200/80 bg-white/96 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -150,6 +122,17 @@ export default function DashboardOverview({
           ))}
         </div>
 
+        <section className="mt-5" aria-label="Exam readiness">
+          <div className="rounded-3xl border border-teal-200 bg-teal-50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">Exam readiness indicator</p>
+            <div className="mt-4 flex items-end gap-4"><p className="text-5xl font-semibold text-slate-900">{progress.examReadiness}%</p><p className="pb-1 text-sm text-stone-600">{progress.examReadiness >= 75 ? 'Strong foundation' : progress.examReadiness >= 45 ? 'Building momentum' : 'Start with a small review session'}</p></div>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-teal-700 transition-[width]" style={{ width: `${progress.examReadiness}%` }} /></div>
+            <p className="mt-3 text-sm leading-6 text-stone-700">Readiness combines quiz accuracy (45%), flashcard revision (30%), subject coverage (15%), and active exam planning (10%).</p>
+          </div>
+        </section>
+
+        <GamificationPanel profile={analytics.gamification} />
+
         <div className="mt-5 rounded-3xl border border-teal-200 bg-teal-50 p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -165,7 +148,7 @@ export default function DashboardOverview({
           </div>
         </div>
 
-        <div className="mt-5 rounded-3xl border border-stone-200 bg-stone-50 p-4">
+        <div className="mt-5 hidden rounded-3xl border border-stone-200 bg-stone-50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-800">

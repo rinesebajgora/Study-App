@@ -53,6 +53,15 @@ create table if not exists public.flashcards (
   created_at timestamptz not null default now()
 );
 
+-- One immutable row per flashcard review powers weekly/monthly activity charts.
+create table if not exists public.flashcard_review_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  flashcard_id uuid not null references public.flashcards(id) on delete cascade,
+  rating text not null check (rating in ('again', 'hard', 'good', 'easy')),
+  reviewed_at timestamptz not null default now()
+);
+
 alter table public.flashcards
 add column if not exists review_count integer not null default 0;
 
@@ -150,6 +159,7 @@ alter table public.subjects enable row level security;
 alter table public.pinned_questions enable row level security;
 alter table public.revision_summaries enable row level security;
 alter table public.flashcards enable row level security;
+alter table public.flashcard_review_events enable row level security;
 alter table public.exam_plans enable row level security;
 alter table public.quizzes enable row level security;
 alter table public.quiz_attempts enable row level security;
@@ -255,6 +265,11 @@ create policy "Users can delete their flashcards"
 on public.flashcards for delete
 using (auth.uid() = user_id);
 
+drop policy if exists "Users can read their flashcard review events" on public.flashcard_review_events;
+create policy "Users can read their flashcard review events" on public.flashcard_review_events for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their flashcard review events" on public.flashcard_review_events;
+create policy "Users can insert their flashcard review events" on public.flashcard_review_events for insert with check (auth.uid() = user_id);
+
 drop policy if exists "Users can read their exam plans" on public.exam_plans;
 create policy "Users can read their exam plans"
 on public.exam_plans for select
@@ -308,6 +323,7 @@ create index if not exists flashcards_user_created_idx on public.flashcards(user
 create index if not exists flashcards_user_question_idx on public.flashcards(user_id, question_id);
 create index if not exists flashcards_user_subject_idx on public.flashcards(user_id, subject);
 create index if not exists flashcards_user_next_review_idx on public.flashcards(user_id, next_review_at);
+create index if not exists flashcard_review_events_user_reviewed_idx on public.flashcard_review_events(user_id, reviewed_at desc);
 create index if not exists exam_plans_user_exam_date_idx on public.exam_plans(user_id, exam_date);
 create index if not exists quizzes_user_created_idx on public.quizzes(user_id, created_at desc);
 create index if not exists quiz_attempts_user_completed_idx on public.quiz_attempts(user_id, completed_at desc);

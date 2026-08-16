@@ -32,6 +32,13 @@ export default function ProfileSettings({
   onDeleteAccount,
 }: ProfileSettingsProps) {
   const joinedLabel = createdAt ? new Date(createdAt).toLocaleDateString() : 'Recently'
+  const accountName = displayName.trim() || email?.split('@')[0] || 'Student'
+  const initials = accountName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'S'
 
   return (
     <section className="surface-panel rounded-3xl border border-stone-200/80 bg-white/96 p-5 sm:p-6">
@@ -48,17 +55,39 @@ export default function ProfileSettings({
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <article className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">Account</p>
-          <h3 className="mt-3 wrap-break-word text-lg font-semibold">{displayName || email || 'Signed in'}</h3>
-          <p className="mt-2 wrap-break-word text-sm leading-6 text-stone-600">{email ?? 'Signed in'}</p>
-          <p className="mt-2 text-sm leading-6 text-stone-600">Joined {joinedLabel}</p>
-
-          <div className="mt-5 flex flex-wrap gap-2">
+        <article className="overflow-hidden rounded-3xl border border-teal-100 bg-white">
+          <div className="bg-linear-to-br from-teal-950 via-teal-900 to-teal-800 p-5 text-white">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-200">Account</p>
+            <div className="mt-4 flex items-center gap-4">
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-white/20 bg-white/10 text-lg font-semibold shadow-sm">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <h3 className="truncate text-lg font-semibold">{accountName}</h3>
+                <p className="mt-1 truncate text-sm text-teal-100">{email ?? 'Signed in'}</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">Member since</p>
+                <p className="mt-1.5 text-sm font-semibold text-slate-800">{joinedLabel}</p>
+              </div>
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">Account status</p>
+                <p className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-slate-800"><span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />Active</p>
+              </div>
+            </div>
+            <div className="mt-5 border-t border-stone-100 pt-4">
+              <p className="text-xs leading-5 text-stone-500">You are currently signed in on this device.</p>
+            </div>
+          </div>
+          <div className="border-t border-stone-100 bg-stone-50 px-5 py-4">
             <button
               type="button"
               onClick={onLogout}
-              className="app-button min-h-10 bg-teal-900 px-4 text-sm text-white hover:bg-teal-800"
+              className="app-button min-h-10 border border-stone-300 bg-white px-4 text-sm text-stone-700 hover:bg-stone-100"
             >
               Logout
             </button>

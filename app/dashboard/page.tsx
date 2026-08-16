@@ -14,6 +14,7 @@ import {
   deleteQuestion,
   deleteSubject,
   ExamPlan,
+  fetchFlashcardReviewEvents,
   fetchFlashcards,
   fetchExamPlans,
   fetchPinnedQuestionIds,
@@ -21,6 +22,7 @@ import {
   fetchRevisionSummaries,
   fetchSubjects,
   Flashcard,
+  FlashcardReviewEvent,
   FlashcardRating,
   pinQuestion,
   QA,
@@ -34,6 +36,8 @@ import {
 import { createQuiz, fetchQuizAnalytics, QuizHistoryItem, saveQuizAttempt, TopicStat } from '../lib/quizzes'
 import { buildSubjectKnowledgeProfiles, buildTopicKnowledgeProfiles } from '../lib/knowledge'
 import { buildDailyRecommendation } from '../lib/daily-recommendations'
+import { getStudyStreak } from '../lib/dashboard-analytics'
+import { buildGamificationProfile } from '../lib/gamification'
 import AskAiPanel from './components/AskAiPanel'
 import DashboardOverview, { DashboardAnalytics, ProgressStats } from './components/DashboardOverview'
 import DashboardSidebar from './components/DashboardSidebar'
@@ -186,6 +190,7 @@ export default function DashboardPage() {
   const [generatingQuiz, setGeneratingQuiz] = useState(false)
   const [quizHistory, setQuizHistory] = useState<QuizHistoryItem[]>([])
   const [weakQuizTopics, setWeakQuizTopics] = useState<TopicStat[]>([])
+  const [reviewEvents, setReviewEvents] = useState<FlashcardReviewEvent[]>([])
   const [todayIso] = useState(() => new Date().toISOString().slice(0, 10))
 
   useEffect(() => {
@@ -207,13 +212,14 @@ export default function DashboardPage() {
       setDraftExamPlan(null)
       setQuizHistory([])
       setWeakQuizTopics([])
+      setReviewEvents([])
       setFetchingSaved(false)
       return
     }
 
     const loadWorkspace = async () => {
       setFetchingSaved(true)
-      const [questions, pins, revisionSummaries, managedSubjects, cards, plans, quizAnalytics] = await Promise.all([
+      const [questions, pins, revisionSummaries, managedSubjects, cards, plans, quizAnalytics, reviews] = await Promise.all([
         fetchQuestions(user.id),
         fetchPinnedQuestionIds(user.id),
         fetchRevisionSummaries(user.id),
@@ -221,6 +227,7 @@ export default function DashboardPage() {
         fetchFlashcards(user.id),
         fetchExamPlans(user.id),
         fetchQuizAnalytics(user.id),
+        fetchFlashcardReviewEvents(user.id),
       ])
 
       if (questions.error) {
@@ -246,6 +253,7 @@ export default function DashboardPage() {
         setQuizHistory(quizAnalytics.history)
         setWeakQuizTopics(quizAnalytics.topics)
       }
+      if (!reviews.error) setReviewEvents(reviews.data)
 
       setFetchingSaved(false)
     }
@@ -262,6 +270,26 @@ export default function DashboardPage() {
 
     return () => window.clearTimeout(timer)
   }, [status])
+
+  useEffect(() => {
+    if (!activeSection) return
+
+    const scrollTimer = window.setTimeout(() => {
+      document.getElementById(activeSection)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    }, 0)
+
+    return () => window.clearTimeout(scrollTimer)
+  }, [activeSection])
+
+  const openWorkspaceSection = useCallback((section: string) => {
+    setActiveSection(section)
+    window.setTimeout(() => {
+      document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+  }, [])
 
   const askAi = async (message: string) => {
     const {
@@ -365,6 +393,11 @@ export default function DashboardPage() {
     return hasNotes || hasCards || hasPlans
   }).length
   const completedExams = examPlans.filter((plan) => plan.examDate < todayIso).length
+  const quizQuestionCount = quizHistory.reduce((sum, attempt) => sum + attempt.totalQuestions, 0)
+  const quizAccuracy = quizQuestionCount === 0 ? 0 : Math.round((quizHistory.reduce((sum, attempt) => sum + attempt.correctAnswers, 0) / quizQuestionCount) * 100)
+  const revisionScore = flashcards.length === 0 ? 0 : Math.round((reviewedFlashcards / flashcards.length) * 100)
+  const coverageScore = allSubjects.length === 0 ? 0 : Math.round((subjectsWithMaterial / allSubjects.length) * 100)
+  const planningScore = examPlans.some((plan) => plan.examDate >= todayIso) ? 100 : 0
   const progressStats: ProgressStats = {
     totalNotes: savedQA.length,
     totalSubjects: allSubjects.length,
@@ -373,9 +406,9 @@ export default function DashboardPage() {
     pinnedNotes: pinnedQA.length,
     upcomingExams: examPlans.filter((plan) => plan.examDate >= todayIso).length,
     completedExams,
-    revisionProgress: flashcards.length === 0 ? 0 : Math.round((reviewedFlashcards / flashcards.length) * 100),
-    subjectCoverage: allSubjects.length === 0 ? 0 : Math.round((subjectsWithMaterial / allSubjects.length) * 100),
-    examReadiness: examPlans.length === 0 ? 0 : Math.round((completedExams / examPlans.length) * 100),
+    revisionProgress: revisionScore,
+    subjectCoverage: coverageScore,
+    examReadiness: Math.round(quizAccuracy * 0.45 + revisionScore * 0.3 + coverageScore * 0.15 + planningScore * 0.1),
   }
   const workspaceStats = [
     ['Study notes', `${progressStats.totalNotes}`],
@@ -383,18 +416,10 @@ export default function DashboardPage() {
     ['Upcoming exams', `${progressStats.upcomingExams}`],
     ['Pinned notes', `${progressStats.pinnedNotes}`],
   ]
-  const reviewedDateSet = new Set(
-    flashcards
-      .map((card) => getIsoDate(card.reviewedAt))
-      .filter((date): date is string => Boolean(date))
-  )
-  let studyStreak = 0
-  let dayCursor = toDayNumber(todayIso)
-  while (reviewedDateSet.has(new Date(dayCursor * 86400000).toISOString().slice(0, 10))) {
-    studyStreak += 1
-    dayCursor -= 1
-  }
-  const reviewedToday = flashcards.filter((card) => getIsoDate(card.reviewedAt) === todayIso).length
+  const fallbackReviewEvents = flashcards.flatMap((card) => card.reviewedAt ? [{ id: card.id, reviewedAt: card.reviewedAt, rating: 'good' as const }] : [])
+  const activityEvents = reviewEvents.length > 0 ? reviewEvents : fallbackReviewEvents
+  const studyStreak = getStudyStreak(activityEvents, todayIso)
+  const reviewedToday = activityEvents.filter((event) => getIsoDate(event.reviewedAt) === todayIso).length
   const knowledgeProfiles = useMemo(
     () => buildSubjectKnowledgeProfiles(allSubjects, flashcards, quizHistory),
     [allSubjects, flashcards, quizHistory]
@@ -416,6 +441,13 @@ export default function DashboardPage() {
     topicProfiles,
     dailyRecommendation,
     upcomingDeadlines,
+    gamification: buildGamificationProfile({
+      reviewEvents: activityEvents,
+      reviewCount: flashcards.reduce((sum, card) => sum + card.reviewCount, 0),
+      quizHistory,
+      studyStreak,
+      todayIso,
+    }),
   }
   const hasOnboardingWork = allSubjects.length === 0 || savedQA.length === 0 || flashcards.length === 0
 
@@ -1238,6 +1270,7 @@ Answer: ${qa.answer}`
       })
     } else {
       setFlashcards((prev) => prev.map((item) => (item.id === data.id ? data : item)))
+      setReviewEvents((prev) => [{ id: `${data.id}-${data.reviewedAt}`, reviewedAt: data.reviewedAt ?? new Date().toISOString(), rating }, ...prev])
       setStatus({ type: 'success', text: `Flashcard scheduled again after: ${rating}.` })
     }
 
@@ -1491,57 +1524,61 @@ Answer: ${qa.answer}`
               profileLabel={displayName}
               stats={workspaceStats}
               activeSection={activeSection}
-              onSectionChange={setActiveSection}
+              onSectionChange={openWorkspaceSection}
               onLogout={handleLogout}
             />
 
             <main className="min-w-0 space-y-6 pb-24 xl:pb-0">
-              <GlobalSearch
-                query={globalSearchTerm}
-                results={globalSearchResults}
-                onQueryChange={setGlobalSearchTerm}
-                onOpenResult={handleOpenGlobalSearchResult}
-              />
+              {activeSection !== 'profile' && (
+                <>
+                  <GlobalSearch
+                    query={globalSearchTerm}
+                    results={globalSearchResults}
+                    onQueryChange={setGlobalSearchTerm}
+                    onOpenResult={handleOpenGlobalSearchResult}
+                  />
 
-              <DashboardOverview
-                examPlans={examPlans}
-                todayIso={todayIso}
-                progress={progressStats}
-                analytics={dashboardAnalytics}
-              />
+                  <DashboardOverview
+                    examPlans={examPlans}
+                    todayIso={todayIso}
+                    progress={progressStats}
+                    analytics={dashboardAnalytics}
+                  />
 
-              {hasOnboardingWork && (
-                <OnboardingPanel
-                  hasSubject={allSubjects.length > 0}
-                  hasNote={savedQA.length > 0}
-                  hasFlashcards={flashcards.length > 0}
-                  onCreateSubject={() => setActiveSection('subjects')}
-                  onCreateNote={() => {
-                    setActiveSection('study-notes')
-                    if (!input.trim()) {
-                      setSubject(promptSuggestions[0].subject)
-                      setInput(promptSuggestions[0].question)
-                    }
-                  }}
-                  onCreateFlashcards={() => {
-                    setActiveSection('study-notes')
-                    if (savedQA[0]) {
-                      setSelectedQuestionId(savedQA[0].id)
-                    } else {
-                      setSubject(promptSuggestions[0].subject)
-                      setInput(promptSuggestions[0].question)
-                    }
-                  }}
-                />
-              )}
+                  {hasOnboardingWork && (
+                    <OnboardingPanel
+                      hasSubject={allSubjects.length > 0}
+                      hasNote={savedQA.length > 0}
+                      hasFlashcards={flashcards.length > 0}
+                      onCreateSubject={() => setActiveSection('subjects')}
+                      onCreateNote={() => {
+                        setActiveSection('study-notes')
+                        if (!input.trim()) {
+                          setSubject(promptSuggestions[0].subject)
+                          setInput(promptSuggestions[0].question)
+                        }
+                      }}
+                      onCreateFlashcards={() => {
+                        setActiveSection('study-notes')
+                        if (savedQA[0]) {
+                          setSelectedQuestionId(savedQA[0].id)
+                        } else {
+                          setSubject(promptSuggestions[0].subject)
+                          setInput(promptSuggestions[0].question)
+                        }
+                      }}
+                    />
+                  )}
 
-              {!activeSection && (
-                <section className="surface-panel rounded-3xl border border-stone-200/80 bg-white/96 p-5 text-center sm:p-6">
-                  <p className="text-sm font-semibold text-slate-800">Choose a workspace section</p>
-                  <p className="mt-2 text-sm leading-6 text-stone-600">
-                    Open Subjects, Exam planner, Study notes library, Flashcards, Quiz, or Import from the navigation.
-                  </p>
-                </section>
+                  {!activeSection && (
+                    <section className="surface-panel rounded-3xl border border-stone-200/80 bg-white/96 p-5 text-center sm:p-6">
+                      <p className="text-sm font-semibold text-slate-800">Choose a workspace section</p>
+                      <p className="mt-2 text-sm leading-6 text-stone-600">
+                        Open Subjects, Exam planner, Study notes library, Flashcards, Quiz, or Import from the navigation.
+                      </p>
+                    </section>
+                  )}
+                </>
               )}
 
               {activeSection === 'subjects' && (
