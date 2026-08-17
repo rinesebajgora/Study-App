@@ -21,12 +21,12 @@ type QuizPanelProps = {
   subjects: string[]
   generating: boolean
   history: Array<{ id: string; subject: string; title: string; score: number; correctAnswers: number; totalQuestions: number; durationSeconds: number; completedAt: string }>
-  weakTopics: Array<{ topic: string; total: number; incorrect: number }>
+  weakSubjects: Array<{ subject: string }>
   onGenerate: (params: { material: string; subject: string; title: string; sourceType: 'note' | 'subject' | 'material' }) => Promise<GeneratedQuiz | null>
   onSubmitQuiz: (params: { quizId: string; questions: QuizQuestion[]; answers: Record<string, string>; startedAt: number }) => Promise<boolean>
 }
 
-export default function QuizPanel({ notes, subjects, generating, history, weakTopics, onGenerate, onSubmitQuiz }: QuizPanelProps) {
+export default function QuizPanel({ notes, subjects, generating, history, weakSubjects, onGenerate, onSubmitQuiz }: QuizPanelProps) {
   const [source, setSource] = useState<'note' | 'subject' | 'material'>('note')
   const [noteId, setNoteId] = useState('')
   const [subject, setSubject] = useState('')
@@ -115,7 +115,7 @@ export default function QuizPanel({ notes, subjects, generating, history, weakTo
 
       <section className="mt-8 grid gap-4 xl:grid-cols-2">
         <article className="rounded-3xl border border-stone-200 bg-stone-50 p-5"><h3 className="text-lg font-semibold">Quiz history</h3><div className="mt-4 space-y-3">{history.length === 0 ? <p className="text-sm leading-6 text-stone-600">Complete a quiz to see your saved results here.</p> : history.slice(0, 5).map((item) => <div key={item.id} className="rounded-2xl bg-white p-3"><p className="text-sm font-semibold text-slate-900">{item.subject} — {item.score}%</p><p className="mt-1 text-xs leading-5 text-stone-600">{item.correctAnswers}/{item.totalQuestions} correct · {Math.max(1, Math.round(item.durationSeconds / 60))} min · {new Date(item.completedAt).toLocaleDateString()}</p></div>)}</div></article>
-        <article className="rounded-3xl border border-stone-200 bg-stone-50 p-5"><h3 className="text-lg font-semibold">Topics to review</h3><div className="mt-4 space-y-3">{weakTopics.length === 0 ? <p className="text-sm leading-6 text-stone-600">No weak topics yet. Your missed answers will appear here after you complete quizzes.</p> : weakTopics.map((item) => <div key={item.topic} className="rounded-2xl bg-white p-3"><p className="text-sm font-semibold text-slate-900">{item.topic}</p><p className="mt-1 text-xs leading-5 text-stone-600">{item.incorrect} incorrect answer(s) out of {item.total} question(s)</p></div>)}</div></article>
+        <article className="rounded-3xl border border-stone-200 bg-stone-50 p-5"><h3 className="text-lg font-semibold">Subjects to review</h3><div className="mt-4 space-y-3">{weakSubjects.length === 0 ? <p className="text-sm leading-6 text-stone-600">No subjects need review yet. Subjects with missed quiz answers will appear here.</p> : weakSubjects.map((item) => <div key={item.subject} className="rounded-2xl bg-white p-3"><p className="text-sm font-semibold text-slate-900">{item.subject}</p></div>)}</div></article>
       </section>
     </section>
   )

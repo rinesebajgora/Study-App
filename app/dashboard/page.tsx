@@ -33,7 +33,7 @@ import {
   updateQuestion,
   upsertRevisionSummary,
 } from '../lib/questions'
-import { createQuiz, fetchQuizAnalytics, QuizHistoryItem, saveQuizAttempt, TopicStat } from '../lib/quizzes'
+import { createQuiz, fetchQuizAnalytics, QuizHistoryItem, saveQuizAttempt, SubjectStat, TopicStat } from '../lib/quizzes'
 import { buildSubjectKnowledgeProfiles, buildTopicKnowledgeProfiles } from '../lib/knowledge'
 import { buildDailyRecommendation } from '../lib/daily-recommendations'
 import { getStudyStreak } from '../lib/dashboard-analytics'
@@ -114,6 +114,12 @@ function getIsoDate(value?: string | null) {
   return value ? new Date(value).toISOString().slice(0, 10) : null
 }
 
+function buildFallbackExamPlan(subject: string, sectionDays: number[]) {
+  return sectionDays
+    .map((day, index) => `Day ${day}:\n- Task: Review the ${subject} topics scheduled for this checkpoint and write a short recall summary.\n- Task: Complete practice questions, mark weak areas, and choose what to revise next.${index === sectionDays.length - 1 ? '\n- Task: Do a light final review of key facts, formulas, or definitions.' : ''}`)
+    .join('\n\n')
+}
+
 function isQuizSchemaMissing(error: { message?: string; code?: string } | null | undefined) {
   return error?.code === 'PGRST205' || error?.message?.toLowerCase().includes("could not find the table 'public.quiz") || false
 }
@@ -190,6 +196,7 @@ export default function DashboardPage() {
   const [generatingQuiz, setGeneratingQuiz] = useState(false)
   const [quizHistory, setQuizHistory] = useState<QuizHistoryItem[]>([])
   const [weakQuizTopics, setWeakQuizTopics] = useState<TopicStat[]>([])
+  const [weakQuizSubjects, setWeakQuizSubjects] = useState<SubjectStat[]>([])
   const [reviewEvents, setReviewEvents] = useState<FlashcardReviewEvent[]>([])
   const [todayIso] = useState(() => new Date().toISOString().slice(0, 10))
 
@@ -212,6 +219,7 @@ export default function DashboardPage() {
       setDraftExamPlan(null)
       setQuizHistory([])
       setWeakQuizTopics([])
+      setWeakQuizSubjects([])
       setReviewEvents([])
       setFetchingSaved(false)
       return
@@ -252,6 +260,7 @@ export default function DashboardPage() {
       if (!quizAnalytics.error) {
         setQuizHistory(quizAnalytics.history)
         setWeakQuizTopics(quizAnalytics.topics)
+        setWeakQuizSubjects(quizAnalytics.subjects)
       }
       if (!reviews.error) setReviewEvents(reviews.data)
 
@@ -747,15 +756,28 @@ export default function DashboardPage() {
         0
       )
       const planDays = Math.max(daysUntilExam, 1)
-      const plan = await askAi(
-        `Create a practical exam preparation plan for a student.
+      // Two concise tasks for every day can exceed the AI output limit for long plans.
+      // Space a fixed number of study checkpoints across the available time instead.
+      const maxPlanSections = 24
+      const sectionCount = Math.min(planDays, maxPlanSections)
+      const sectionDays = Array.from({ length: sectionCount }, (_, index) => {
+        if (sectionCount === 1) return 1
+        return Math.round(1 + (index * (planDays - 1)) / (sectionCount - 1))
+      })
+      let plan: string
+      let usedFallbackPlan = false
+
+      try {
+        plan = await askAi(
+          `Create a practical exam preparation plan for a student.
 Subject: ${examSubject.trim()}
 Exam date: ${examDate}
 Today: ${todayIso}
 Days available before the exam: ${daysUntilExam}
 Goal: ${examGoal.trim() || 'Understand the subject and revise confidently'}
 
-Create exactly ${planDays} day sections, no more than ${planDays}.
+Create exactly ${sectionCount} day sections using only these day numbers: ${sectionDays.join(', ')}.
+The whole plan must fit within 850 tokens. If the exam is more than ${maxPlanSections} days away, the supplied day numbers are spaced checkpoints; make each checkpoint cover the period until the next one.
 Use this exact format:
 Day 1:
 - Task: one concrete study action for that day
@@ -766,8 +788,14 @@ Rules:
 - If the exam is today, create only one light review day.
 - Each task must be something the student can do, not a heading or explanation.
 - Keep tasks short and realistic.
+- Never leave a day section empty. If details are limited, use a useful general revision or practice task.
 - Do not include overview paragraphs, markdown tables, or extra commentary.`
-      )
+        )
+      } catch {
+        // A useful plan is better than an empty draft if the AI response is unavailable.
+        plan = buildFallbackExamPlan(examSubject.trim(), sectionDays)
+        usedFallbackPlan = true
+      }
 
       await syncSubject(examSubject.trim())
       setDraftExamPlan({
@@ -776,7 +804,7 @@ Rules:
         goal: examGoal.trim(),
         plan,
       })
-      setStatus({ type: 'success', text: 'Exam plan generated. Save it when it looks right.' })
+      setStatus({ type: 'success', text: usedFallbackPlan ? 'A basic exam plan was created because the AI response was unavailable. You can save or edit it.' : 'Exam plan generated. Save it when it looks right.' })
     } catch (err) {
       setStatus({ type: 'error', text: err instanceof Error ? err.message : 'Unexpected error' })
     } finally {
@@ -1772,7 +1800,7 @@ Answer: ${qa.answer}`
                   subjects={allSubjects}
                   generating={generatingQuiz}
                   history={quizHistory}
-                  weakTopics={weakQuizTopics}
+                  weakSubjects={weakQuizSubjects}
                   onGenerate={handleGenerateQuiz}
                   onSubmitQuiz={handleSaveQuizAttempt}
                 />

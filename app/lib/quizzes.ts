@@ -18,9 +18,16 @@ export type TopicStat = {
   incorrect: number
 }
 
+export type SubjectStat = {
+  subject: string
+  total: number
+  incorrect: number
+}
+
 export type QuizAnalytics = {
   history: QuizHistoryItem[]
   topics: TopicStat[]
+  subjects: SubjectStat[]
   error: { message?: string; code?: string } | null
 }
 
@@ -33,6 +40,16 @@ type AttemptRow = {
   duration_seconds: number
   completed_at: string
   quizzes: { subject: string; title: string } | { subject: string; title: string }[] | null
+}
+
+type AnswerRow = {
+  topic: string | null
+  is_correct: boolean
+  quiz_attempts: {
+    quizzes: { subject: string } | { subject: string }[] | null
+  } | {
+    quizzes: { subject: string } | { subject: string }[] | null
+  }[] | null
 }
 
 export async function createQuiz(params: {
@@ -116,7 +133,7 @@ export async function fetchQuizAnalytics(userId: string) {
       .order('completed_at', { ascending: false }),
     supabase
       .from('quiz_attempt_answers')
-      .select('topic, is_correct')
+      .select('topic, is_correct, quiz_attempts(quizzes(subject))')
       .eq('user_id', userId),
   ])
 
@@ -135,12 +152,21 @@ export async function fetchQuizAnalytics(userId: string) {
   })
 
   const topicMap = new Map<string, TopicStat>()
-  for (const item of answersResult.data ?? []) {
+  const subjectMap = new Map<string, SubjectStat>()
+  for (const item of (answersResult.data as AnswerRow[] | null) ?? []) {
     const topic = String(item.topic || 'General').trim() || 'General'
     const current = topicMap.get(topic) ?? { topic, total: 0, incorrect: 0 }
     current.total += 1
     if (!item.is_correct) current.incorrect += 1
     topicMap.set(topic, current)
+
+    const attempt = Array.isArray(item.quiz_attempts) ? item.quiz_attempts[0] : item.quiz_attempts
+    const quiz = Array.isArray(attempt?.quizzes) ? attempt.quizzes[0] : attempt?.quizzes
+    const subject = quiz?.subject?.trim() || 'General'
+    const subjectCurrent = subjectMap.get(subject) ?? { subject, total: 0, incorrect: 0 }
+    subjectCurrent.total += 1
+    if (!item.is_correct) subjectCurrent.incorrect += 1
+    subjectMap.set(subject, subjectCurrent)
   }
 
   return {
@@ -150,6 +176,9 @@ export async function fetchQuizAnalytics(userId: string) {
       const bScore = (b.total - b.incorrect) / b.total
       return aScore - bScore || b.total - a.total || a.topic.localeCompare(b.topic)
     }),
+    subjects: [...subjectMap.values()]
+      .filter((item) => item.incorrect > 0)
+      .sort((a, b) => b.incorrect - a.incorrect || a.subject.localeCompare(b.subject)),
     error: historyResult.error || answersResult.error,
   } satisfies QuizAnalytics
 }

@@ -45,7 +45,7 @@ function parseQuiz(reply: string) {
   const clean = reply.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim()
   const parsed = JSON.parse(clean) as { questions?: unknown }
   if (!Array.isArray(parsed.questions)) return []
-  return parsed.questions.map(normalizeQuestion).filter((question): question is QuizQuestion => Boolean(question)).slice(0, 8)
+  return parsed.questions.map(normalizeQuestion).filter((question): question is QuizQuestion => Boolean(question)).slice(0, 10)
 }
 
 function fallbackQuiz(material: string): QuizQuestion[] {
@@ -54,28 +54,20 @@ function fallbackQuiz(material: string): QuizQuestion[] {
     .split(/(?<=[.!?])\s+|\n+/)
     .map((line) => line.trim())
     .filter((line) => line.length > 30)
-    .slice(0, 3)
+    .slice(0, 10)
 
   const firstFact = facts[0] ?? 'Review the supplied study material and explain its main idea.'
-  return [
-    {
-      id: 'q-1',
-      type: 'open',
-      question: 'Explain the main idea from this study material in your own words.',
-      answer: firstFact,
-      explanation: 'A strong answer should identify the main concept and connect it to the material.',
+  return Array.from({ length: 10 }, (_, index) => {
+    const fact = facts[index % Math.max(facts.length, 1)] ?? firstFact
+    return {
+      id: `q-${index + 1}`,
+      type: 'open' as const,
+      question: `In your own words, explain this idea from the study material: "${fact}"`,
+      answer: fact,
+      explanation: 'A strong answer should accurately explain the idea using the supplied material.',
       topic: 'Core concepts',
-    },
-    {
-      id: 'q-2',
-      type: 'true_false',
-      question: `True or false: this statement appears in the material: "${firstFact}"`,
-      options: ['True', 'False'],
-      answer: 'True',
-      explanation: 'The statement was taken directly from the supplied material.',
-      topic: 'Core concepts',
-    },
-  ]
+    }
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -103,16 +95,17 @@ export async function POST(request: NextRequest) {
 
     const client = new Groq({ apiKey: process.env.GROQ_API_KEY })
     const completion = await client.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
+      model: 'openai/gpt-oss-20b',
       messages: [
         { role: 'system', content: 'You create accurate study quizzes using only the supplied material. Return only valid JSON.' },
-        { role: 'user', content: `Subject: ${subject}\n\nStudy material:\n${material.slice(0, 18000)}\n\nCreate exactly 6 questions: 3 multiple-choice, 2 true/false, and 1 open question. Return only this JSON shape:\n{"questions":[{"type":"multiple_choice","topic":"short topic name","question":"...","options":["...","...","...","..."],"answer":"the exact correct option","explanation":"brief explanation"},{"type":"true_false","topic":"short topic name","question":"...","answer":"True","explanation":"brief explanation"},{"type":"open","topic":"short topic name","question":"...","answer":"model answer","explanation":"what a good answer includes"}]}\n\nRules: use only facts from the material; multiple-choice options must contain exactly four choices; use a concise topic label for each question; do not use markdown.` },
+        { role: 'user', content: `Subject: ${subject}\n\nStudy material:\n${material.slice(0, 18000)}\n\nCreate exactly 10 questions: 5 multiple-choice, 3 true/false, and 2 open questions. Return only this JSON shape:\n{"questions":[{"type":"multiple_choice","topic":"short topic name","question":"...","options":["...","...","...","..."],"answer":"the exact correct option","explanation":"brief explanation"},{"type":"true_false","topic":"short topic name","question":"...","answer":"True","explanation":"brief explanation"},{"type":"open","topic":"short topic name","question":"...","answer":"model answer","explanation":"what a good answer includes"}]}\n\nRules: use only facts from the material; multiple-choice options must contain exactly four choices; use a concise topic label for each question; do not use markdown.` },
       ],
-      max_tokens: 1800,
+      max_completion_tokens: 3000,
+      reasoning_effort: 'low',
     })
     const reply = completion.choices[0]?.message?.content?.trim()
     const questions = reply ? parseQuiz(reply) : []
-    return NextResponse.json({ questions: questions.length >= 4 ? questions : fallbackQuiz(material), fallback: questions.length < 4 })
+    return NextResponse.json({ questions: questions.length === 10 ? questions : fallbackQuiz(material), fallback: questions.length !== 10 })
   } catch (error) {
     console.error('Quiz generation error:', error)
     return NextResponse.json({ error: 'We could not generate a quiz right now. Please try again.' }, { status: 500 })

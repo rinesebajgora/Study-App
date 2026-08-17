@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     });
 
     const completion = await client.chat.completions.create({
-      model: "llama-3.1-8b-instant", 
+      model: "openai/gpt-oss-20b",
       messages: [
         {
           role: "system",
@@ -114,7 +114,9 @@ export async function POST(request: NextRequest) {
           content: `Student question:\n${trimmedMessage}\n\nRelevant excerpts from the student's documents:\n${documentContext}`
         }
       ],
-      max_tokens: 1000
+      // Reserve enough space for a complete plan while keeping responses bounded.
+      max_completion_tokens: 2400,
+      reasoning_effort: "low",
     });
 
     const reply = completion.choices[0]?.message?.content?.trim();

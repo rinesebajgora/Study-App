@@ -120,7 +120,7 @@ async function createAiCards(client: Groq, params: {
       : "";
 
   const completion = await client.chat.completions.create({
-    model: "llama-3.1-8b-instant",
+    model: "openai/gpt-oss-20b",
     messages: [
       {
         role: "system",
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
 
       if (cards.length === 0) {
         const repairCompletion = await client.chat.completions.create({
-          model: "llama-3.1-8b-instant",
+          model: "openai/gpt-oss-20b",
           messages: [
             {
               role: "system",
