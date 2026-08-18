@@ -134,6 +134,16 @@ create table if not exists public.document_chunks (
   created_at timestamptz not null default now()
 );
 
+-- Stores one counter per user and AI action. Direct browser access is denied;
+-- the function below is the only supported way to consume a request.
+create table if not exists public.ai_rate_limits (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  action text not null check (action in ('chat', 'flashcards', 'quiz', 'import_material')),
+  window_started_at timestamptz not null,
+  request_count integer not null default 0 check (request_count >= 0),
+  primary key (user_id, action)
+);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -165,6 +175,7 @@ alter table public.quizzes enable row level security;
 alter table public.quiz_attempts enable row level security;
 alter table public.quiz_attempt_answers enable row level security;
 alter table public.document_chunks enable row level security;
+alter table public.ai_rate_limits enable row level security;
 
 drop policy if exists "Users can read their subjects" on public.subjects;
 create policy "Users can read their subjects"
@@ -314,6 +325,55 @@ drop policy if exists "Users can insert their document chunks" on public.documen
 create policy "Users can insert their document chunks" on public.document_chunks for insert with check (auth.uid() = user_id);
 drop policy if exists "Users can delete their document chunks" on public.document_chunks;
 create policy "Users can delete their document chunks" on public.document_chunks for delete using (auth.uid() = user_id);
+
+-- Rate limits per user, per 60-second window:
+-- chat: 15, flashcards: 10, quiz: 5, import_material: 5.
+-- The check and increment happen atomically, so concurrent requests cannot bypass it.
+create or replace function public.consume_ai_rate_limit(p_action text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_limit integer;
+  v_window_started_at timestamptz := date_trunc('minute', now());
+begin
+  if v_user_id is null then
+    raise exception 'Authentication is required';
+  end if;
+
+  v_limit := case p_action
+    when 'chat' then 15
+    when 'flashcards' then 10
+    when 'quiz' then 5
+    when 'import_material' then 5
+    else null
+  end;
+
+  if v_limit is null then
+    raise exception 'Unsupported AI action';
+  end if;
+
+  insert into public.ai_rate_limits as rate_limit (user_id, action, window_started_at, request_count)
+  values (v_user_id, p_action, v_window_started_at, 1)
+  on conflict (user_id, action) do update
+  set
+    window_started_at = excluded.window_started_at,
+    request_count = case
+      when rate_limit.window_started_at < excluded.window_started_at then 1
+      else rate_limit.request_count + 1
+    end
+  where rate_limit.window_started_at < excluded.window_started_at
+    or rate_limit.request_count < v_limit;
+
+  return found;
+end;
+$$;
+
+revoke all on function public.consume_ai_rate_limit(text) from public, anon;
+grant execute on function public.consume_ai_rate_limit(text) to authenticated;
 
 create index if not exists questions_user_created_idx on public.questions(user_id, created_at desc);
 create index if not exists subjects_user_name_idx on public.subjects(user_id, name);

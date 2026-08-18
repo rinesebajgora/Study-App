@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { createClient } from "@supabase/supabase-js";
+import { consumeAiRateLimit } from "../../lib/ai-rate-limit";
 
 type DocumentChunk = {
   content: string;
@@ -77,6 +78,16 @@ export async function POST(request: NextRequest) {
         { error: "Message is empty" },
         { status: 400 }
       );
+    }
+
+    if (process.env.GROQ_API_KEY) {
+      const allowed = await consumeAiRateLimit(supabase, "chat");
+      if (!allowed) {
+        return NextResponse.json(
+          { error: "You've reached the AI request limit. Please wait a minute and try again." },
+          { status: 429 }
+        );
+      }
     }
 
     const { data: documentRows } = await supabase

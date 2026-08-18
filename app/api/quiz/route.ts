@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
 import { createClient } from '@supabase/supabase-js'
+import { consumeAiRateLimit } from '../../lib/ai-rate-limit'
 
 type QuizQuestion = {
   id: string
@@ -90,6 +91,13 @@ export async function POST(request: NextRequest) {
     const material = typeof body.material === 'string' ? body.material.trim() : ''
     const subject = typeof body.subject === 'string' && body.subject.trim() ? body.subject.trim() : 'General'
     if (material.length < 80) return NextResponse.json({ error: 'Add more study material before generating a quiz.' }, { status: 400 })
+
+    if (process.env.GROQ_API_KEY) {
+      const allowed = await consumeAiRateLimit(supabase, 'quiz')
+      if (!allowed) {
+        return NextResponse.json({ error: "You've reached the AI request limit. Please wait a minute and try again." }, { status: 429 })
+      }
+    }
 
     if (!process.env.GROQ_API_KEY) return NextResponse.json({ questions: fallbackQuiz(material), fallback: true })
 

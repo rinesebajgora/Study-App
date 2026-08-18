@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
 import { createClient } from '@supabase/supabase-js'
+import { consumeAiRateLimit } from '../../lib/ai-rate-limit'
 
 type ImportedCard = {
   front: string
@@ -120,6 +121,13 @@ export async function POST(request: NextRequest) {
 
     if (material.length < 80) {
       return NextResponse.json({ error: 'Paste more material before importing.' }, { status: 400 })
+    }
+
+    if (process.env.GROQ_API_KEY) {
+      const allowed = await consumeAiRateLimit(supabase, 'import_material')
+      if (!allowed) {
+        return NextResponse.json({ error: "You've reached the AI request limit. Please wait a minute and try again." }, { status: 429 })
+      }
     }
 
     if (!process.env.GROQ_API_KEY) {

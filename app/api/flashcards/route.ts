@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { createClient } from "@supabase/supabase-js";
+import { consumeAiRateLimit } from "../../lib/ai-rate-limit";
 
 type FlashcardPayload = {
   front: string;
@@ -203,6 +204,16 @@ export async function POST(request: NextRequest) {
         { error: "A saved note question and answer are required." },
         { status: 400 }
       );
+    }
+
+    if (process.env.GROQ_API_KEY) {
+      const allowed = await consumeAiRateLimit(supabase, "flashcards");
+      if (!allowed) {
+        return NextResponse.json(
+          { error: "You've reached the AI request limit. Please wait a minute and try again." },
+          { status: 429 }
+        );
+      }
     }
 
     if (!process.env.GROQ_API_KEY) {
